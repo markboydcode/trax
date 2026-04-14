@@ -1,3 +1,2 @@
-# java -cp classes:.:jars/commons-logging-1.1.2/commons-logging-1.1.2.jar:jars/apache-log4j-1.2.17/log4j-1.2.17.jar nbdp.trax.Launch -props launch.properties
-
-java  -cp "jars/spring-framework-3.2.2.RELEASE/libs/spring-context-3.2.2.RELEASE.jar:jars/spring-framework-3.2.2.RELEASE/libs/spring-jdbc-3.2.2.RELEASE.jar:jars/spring-framework-3.2.2.RELEASE/libs/spring-tx-3.2.2.RELEASE.jar:jars/spring-framework-3.2.2.RELEASE/libs/spring-orm-3.2.2.RELEASE.jar:jars/commons-pool-1.6/commons-pool-1.6.jar:jars/mybatis-spring-1.2.0/mybatis-spring-1.2.0.jar:.:jars/spring-framework-3.2.2.RELEASE/libs/spring-core-3.2.2.RELEASE.jar:classes:jars/apache-log4j-1.2.17/log4j-1.2.17.jar:jars/h2/bin/h2-1.3.171.jar:jars/commons-logging-1.1.2/commons-logging-1.1.2.jar:jars/commons-dbcp-1.4/commons-dbcp-1.4.jar:jars/mybatis-3.2.1/mybatis-3.2.1.jar:jars/spring-framework-3.2.2.RELEASE/libs/spring-beans-3.2.2.RELEASE.jar:" nbdp.trax.TimelineView -cfg spring-cfg.xml
+#!/bin/bash
+java -jar target/trax-5.0.0-uber.jar -cfg spring-cfg.xml
