@@ -3,24 +3,17 @@ import java.awt.*;
 import java.awt.event.*;
 import javax.swing.*;
 import javax.swing.table.*;
-import javax.xml.datatype.Duration;
 
 import nbdp.trax.Constants;
-import nbdp.trax.ServiceLocator;
-import nbdp.trax.data.I_Task;
-import nbdp.trax.data.I_Timeslice;
-import nbdp.trax.data.I_TraxDao;
-import nbdp.trax.data.I_Type;
 
 import java.util.*;
 import java.util.List;
-import java.util.Map.Entry;
 import java.text.*;
 
 public class R_TimeByTask
     extends JDialog
 {
-    private Cell[] summaries = null;
+    private ReportResult result = null;
     private JLabel periodLabel = null;
     private AbstractTableModel dataModel = null;
 
@@ -37,93 +30,19 @@ public class R_TimeByTask
     }
     public void show(List slices)
     {
-        summaries = null;
-        long earliest = -1;
-        long latest = -1;
+        ReportEngine engine = new ReportEngine();
+        result = engine.summarizeByTask(slices);
 
-        if (slices.size() != 0)
+        if (!result.isEmpty())
         {
-            TreeMap table = new TreeMap();
-            ListIterator iter = slices.listIterator();
-            long total = 0;
-            //ReportGroupings groupings = ReportGroupings.getInstance();
-            I_TraxDao dao = ServiceLocator.getInstance().getDAO();
-            Integer unassignedTaskIdObj = new Integer(I_Task.NO_TASK_ID);
-
-            while (iter.hasNext())
-            {
-                I_Timeslice slice = (I_Timeslice) iter.next();
-                int taskId = slice.getTaskId();
-
-                // skip offline time and empty time
-                if (slice.getTypeId() == I_Type.OFFLINE_TYPE_ID || slice.getDuration() <= 0)
-                {
-                    continue;
-                }
-                Integer taskIdObj = new Integer(taskId);
-
-                if (earliest == -1)
-                    earliest = slice.getStart().getTime();
-                else if (slice.getStart().getTime() < earliest)
-                    earliest = slice.getStart().getTime();
-                if (slice.getStart().getTime() + slice.getDuration() > latest)
-                    latest = slice.getStart().getTime() + slice.getDuration();
-
-                total += slice.getDuration();
-
-                // see if summary object already there.
-                Long sum = (Long) table.get(taskIdObj);
-
-                if (sum == null)
-                {
-                    sum = new Long(slice.getDuration());
-                    table.put(taskIdObj, sum);
-                }
-                else
-                {
-                    sum = new Long(sum.longValue() + slice.getDuration());
-                    table.put(taskIdObj, sum);
-                }
-            }
-            // now get names of types and sort
-            TreeMap sorted = new TreeMap();
-            for(Iterator itr = table.entrySet().iterator(); itr.hasNext();)
-            {
-                Map.Entry entry = (Entry) itr.next();
-                Integer taskObjId = (Integer) entry.getKey();
-				Cell cell = new Cell();
-				Long sum = (Long) entry.getValue();
-				cell.sum = sum.longValue();
-
-				if (taskObjId.intValue() == I_Task.NO_TASK_ID)
-                {
-					cell.label = I_Task.UNASSIGNED_TASK_LABEL;
-                }
-                else
-                {
-					I_Task task = dao.getTask(taskObjId.intValue());
-					cell.label = task.getName();
-				}
-				sorted.put(cell.label, cell);
-            }
-            summaries = (Cell[]) sorted.values().toArray(new Cell[] {});
-            // set up title
-            double hours = total/3600000.0;
-            String totalHours = Constants.DECIMAL_FORMATTER.format(hours);
-
+            String totalHours = Constants.DECIMAL_FORMATTER.format(result.getTotalHours());
             periodLabel.setText("" + totalHours + " hours from "
-                    + Constants.TIMESTAMP_FORMATTER.format(new Date(earliest)) + " to "
-                    + Constants.TIMESTAMP_FORMATTER.format(new Date(latest)));
+                    + Constants.TIMESTAMP_FORMATTER.format(new Date(result.getEarliest())) + " to "
+                    + Constants.TIMESTAMP_FORMATTER.format(new Date(result.getLatest())));
         } else
             periodLabel.setText("No Timeline Values to Display");
         dataModel.fireTableStructureChanged();
         super.show();
-    }
-
-    private class Cell
-    {
-        String label = null;
-        long sum = 0;
     }
 
     private void buildUI()
@@ -137,9 +56,9 @@ public class R_TimeByTask
 
             public int getRowCount()
             {
-                if (summaries == null)
+                if (result == null || result.isEmpty())
                     return 0;
-                return summaries.length;
+                return result.getEntries().size();
             }
 
             public String getColumnName(int col)
@@ -156,19 +75,16 @@ public class R_TimeByTask
 
             public Object getValueAt(int row, int col)
             {
-                if (summaries == null)
+                if (result == null || result.isEmpty())
                     return "";
 
+                ReportEntry entry = result.getEntries().get(row);
                 if (col == 0)
                 {
-                    //if ( summaries[row].grouping != null )
-                    //    return summaries[row].grouping.getName() + " +";
-                    //else
-                    return summaries[row].label;
+                    return entry.getLabel();
                 } else if (col == 1)
                 {
-                    double hours = summaries[row].sum/3600000.0;
-                    return Constants.DECIMAL_FORMATTER.format(hours);
+                    return Constants.DECIMAL_FORMATTER.format(entry.getHours());
                 }
                 return "";
             }
