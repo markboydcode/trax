@@ -1,0 +1,10 @@
+trax shortcut on windows: 
+target: "C:\Program Files\Java\jdk1.7.0_17\bin\javaw.exe" -cp c:/Trax/classes;c:/Trax;c:/jars/commons-logging-1.1.1/commons-logging-1.1.1.jar;C:\jars\apache-log4j-1.2.17\log4j-1.2.17.jar nbdp.trax.Launch -props c:/Trax/launch.properties
+
+start up: none	
+
+icon: %SystemDrive%\Trax\src\main\resources\images\watchIcon.ico
+
+unjar the trax backup in a Trax directory.
+
+

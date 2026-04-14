@@ -1,0 +1,24 @@
+This file is meant to convey the general configuration needed to
+set up a trax shortcut icon that launches trax in a background java
+VM using javaw. This is accomplished via a shorcut having the following 
+properties which assume that the Trax directory is in c:/Trax.
+
+Target: "C:\Program Files\Java\jdk1.7.0_17\bin\javaw.exe" -cp c:/Trax/classes;c:/Trax;c:/jars/commons-logging-1.1.1/commons-logging-1.1.1.jar;C:\jars\apache-log4j-1.2.17\log4j-1.2.17.jar nbdp.trax.Launch -props c:/Trax/launch.properties
+Start in: irrelevant
+name: TRAX
+icon: C:\Trax\src\main\resources\images\watchIcon.ico
+
+Launch requires a command line property of -props which 
+should contain the fully qualified path to a ".properties" like the
+launch.properties in the same directory as this file. Generally, 
+the properties provide classpath information for launching the
+trax application and the location of configuration files.
+
+
+The shortcut icon has the following properties:
+-----------------------------------------------
+target: "C:\Program Files\Java\jdk1.7.0_17\bin\javaw.exe" -cp c:/Trax/classes;c:/Trax;c:/jars/commons-logging-1.1.1/commons-logging-1.1.1.jar;C:\jars\apache-log4j-1.2.17\log4j-1.2.17.jar nbdp.trax.Launch -props c:/Trax/launch.properties
+startIn: irrelevant
+name: TRAX
+icon: C:\workspace\Trax\src\main\resources\images\watchIcon.ico
+

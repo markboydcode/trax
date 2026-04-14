@@ -1,0 +1,358 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+     This map contains SQL for the trax DAO
+-->
+
+<mapper namespace="trax">
+
+  <!--  DB INITIALIZATION TOOLS : for each added make sure they are called during init -->
+  
+  <select id="verifyTypesTableInstalledAndLoaded"
+    resultType="java.lang.String">
+    SELECT name FROM types WHERE id=-1
+  </select>
+
+  <update id="create-1">
+ IF NOT EXISTS timelines (
+ lineId integer not null,
+ start timestamp not null,
+ stop timestamp);
+  </update>
+
+  <update id='create-2'>
+ IF NOT EXISTS timeslice (
+ lineId integer not null,
+ start timestamp not null,
+ taskId integer,
+ type integer,
+ note varchar(2048),
+ duration integer);
+  </update>
+  
+  <update id='create-3'>
+ IF NOT EXISTS tasks (
+ id integer not null,
+ parentId integer not null,
+ name varchar(2048) not null,
+ description varchar(2048),
+ completed boolean,
+ typeId integer not null);
+  </update>
+  
+  <update id='create-4'>
+ IF NOT EXISTS config (
+ nextTaskId integer not null,
+ nextLineId integer not null,
+ currentTimeline integer);
+  </update>
+
+  <update id='create-5'>
+ IF NOT EXISTS viewAspects (
+ viewId varchar(2048) not null,
+ aspect varchar(2048) not null);
+  </update>  
+  
+  <update id='create-6'>
+ IF NOT EXISTS types (
+ id integer not null,
+ name varchar(2048) not null);
+  </update>
+  
+  <insert id='init-cfg'>
+insert into config(nexttaskid, nextlineid, currenttimeline) values (100, 100, null);
+  </insert>
+  <!-- <insert id='init-types' parameterType="nbdp.trax.data.ibatis.DbType"> -->
+  <insert id='init-types'>
+insert into types (id, name) values (0,	'Off-line');
+insert into types (id, name) values (1,	'Email');
+insert into types (id, name) values (2,	'Meeting');
+insert into types (id, name) values (3,	'Time Recording');
+insert into types (id, name) values (4,	'Dining');
+insert into types (id, name) values (5,	'Coding');
+insert into types (id, name) values (6,	'Analysis');
+insert into types (id, name) values (7,	'Design');
+insert into types (id, name) values (8,	'Review');
+insert into types (id, name) values (10,	'Assist Others');
+insert into types (id, name) values (11,	'Travel');
+insert into types (id, name) values (12,	'Learning');
+insert into types (id, name) values (13,	'Billable Time');
+insert into types (id, name) values (14,	'Documentation');
+insert into types (id, name) values (15,	'Testing');
+insert into types (id, name) values (16,	'Vacation');
+insert into types (id, name) values (17,	'Holiday');
+insert into types (id, name) values (18,	'Estimating');
+insert into types (id, name) values (19,	'Sick-Leave');
+insert into types (id, name) values (20,	'Training');
+insert into types (id, name) values (21,	'Validation');
+insert into types (id, name) values (-1,	'Misc.');
+  </insert>
+  
+  <!-- end of DB initialization tools -->
+  
+  
+  <!-- RESULT MAPS -->
+
+  <resultMap id="taskObjects"
+    type="nbdp.trax.data.ibatis.DbTask">
+    <result property="id" column="ID"/>
+    <result property="parentId" column="PARENTID"/>
+    <result property="typeId" column="TYPEID"/>
+    <result property="isCompleted" column="COMPLETED"/>
+    <result property="name" column="NAME"/>
+    <result property="description" column="DESCRIPTION"/>
+  </resultMap>
+  
+  <resultMap id="viewAspects"
+    type="nbdp.trax.data.ViewAspect">
+    <result property="viewId" column="VIEWID"/>
+    <result property="aspect" column="ASPECT"/>
+  </resultMap>
+  
+  <resultMap id="taskTypeObjects"
+    type="nbdp.trax.data.ibatis.DbType">
+    <result property="id" column="ID"/>
+    <result property="name" column="NAME"/>
+  </resultMap>
+
+  <resultMap id="sliceObjects"
+    type="nbdp.trax.data.ibatis.DbTimeslice">
+    <result property="timelineId" column="LINEID"/>
+    <result property="start" column="start"/>
+    <result property="typeId" column="TYPE"/>
+    <result property="taskId" column="TASKID"/>
+    <result property="duration" column="DURATION"/>
+    <result property="note" column="NOTE"/>
+  </resultMap>
+
+  <resultMap id="lineObjects"
+    type="nbdp.trax.data.ibatis.DbTimeline">
+    <result property="id" column="LINEID"/>
+    <result property="start" column="START"/>
+    <result property="stop" column="STOP"/>
+  </resultMap>
+
+  <!-- Get timeslices for timeline -->
+
+  <select id="getSlicesForTimeline"
+    parameterType="nbdp.trax.data.ibatis.DbTimeline"
+    resultMap="sliceObjects">
+    SELECT
+     lineId, start, type, taskId, duration, note
+    FROM timeslice
+    WHERE lineId=#{id}
+    ORDER BY start ASC
+  </select>
+
+  <!-- Get timelines in a given period -->
+
+  <select id="getTimelinesInPeriod"
+    parameterType="nbdp.trax.data.Period"
+    resultMap="lineObjects">
+    <!-- Wrap in CDATA block for special characters -->
+    <![CDATA[
+    SELECT lineId, start, stop
+    FROM timelines
+    WHERE 
+     (#{start} < start AND start < #{stop})
+    ]]>
+  </select>
+
+  <!-- Get task name given its ID -->
+
+  <select id="taskNameById"
+    parameterType="java.lang.Integer"
+    resultType="java.lang.String">
+    SELECT name FROM tasks WHERE id=#{value}
+  </select>
+
+  <!-- Get task given its ID -->
+
+  <select id="taskById"
+    parameterType="java.lang.Integer"
+    resultMap="taskObjects">
+    SELECT
+     id, parentId, typeId, completed, name, description
+    FROM tasks WHERE id=#{value}
+  </select>
+
+  <!-- Get sutasks given parent ID -->
+
+  <select id="subtasksByParentId"
+    parameterType="java.lang.Integer"
+    resultMap="taskObjects">
+    SELECT
+     id, parentId, typeId, completed, name, description
+    FROM tasks WHERE parentId=#{value}
+  </select>
+
+  <!-- Query timeslices having some portion of their duration within
+       a time period: ie: either a slice's start or end lie within -->
+
+  <select id="slicesInPeriod"
+    parameterType="nbdp.trax.data.Period"
+    resultMap="sliceObjects">
+    <!-- Wrap in CDATA block for special characters -->
+    <![CDATA[
+    SELECT lineId, start, type, taskId, duration, note
+    FROM timeslice
+    WHERE
+     (#{start} < start AND start < #{stop}) 
+     OR 
+     (#{start} < dateadd('ms', duration, start) 
+      AND dateadd('ms', duration, start) < #{stop})
+    ]]>
+  </select>
+
+  <select id="getTimelineByStart"
+    parameterType="nbdp.trax.data.ibatis.DbTimeline"
+    resultMap="lineObjects">
+    SELECT lineId, start, stop
+    FROM timelines WHERE start = #{start}
+  </select>
+
+  <delete id="deleteTimeline"
+  parameterType="nbdp.trax.data.ibatis.DbTimeline" >
+    DELETE FROM timelines
+    WHERE lineId = #{id}
+  </delete>
+
+  <delete id="deleteSlicesForTimeline"
+    parameterType="nbdp.trax.data.ibatis.DbTimeline">
+    DELETE FROM timeslice
+    WHERE lineId = #{id}
+  </delete>
+
+  <!-- Create a new TASK -->
+
+  <insert id="createTask"
+    parameterType="nbdp.trax.data.ibatis.DbTask">
+    INSERT INTO TASKS (id, parentId, typeId, completed, name, description)
+    VALUES (#{id}, #{parentId}, #{typeId}, #{isCompleted}, #{name}, #{description})
+  </insert>
+
+  <!-- Delete a TASK -->
+
+  <delete id="deleteTask"
+    parameterType="nbdp.trax.data.ibatis.DbTask">
+    DELETE FROM tasks WHERE id=#{id}
+  </delete>
+
+  <!-- Remove references to deleted TASK from timeslices -->
+
+  <update id="removeTaskReferences"
+    parameterType="nbdp.trax.data.ibatis.TaskIds">
+    UPDATE timeslice SET taskId=#{newTaskId} WHERE taskId=#{oldTaskId}
+  </update>
+
+  <!-- Reparent a task -->
+
+  <update id="reparentTask"
+    parameterType="nbdp.trax.data.ibatis.TaskIds">
+    UPDATE tasks SET parentId=#{newTaskId} WHERE id=#{taskId}
+  </update>
+
+  <!-- Count timeslices referencing TASK -->
+
+  <select id="getTaskReferenceCount"
+    parameterType="nbdp.trax.data.ibatis.DbTask"
+    resultType="java.lang.Integer">
+    SELECT count(taskId) FROM timeslice WHERE taskId=#{id}
+  </select>
+
+  <!-- Update existing TASK  -->
+
+  <update id="updateTask"
+    parameterType="nbdp.trax.data.ibatis.DbTask">
+    UPDATE TASKS SET typeId=#{typeId}, completed=#{isCompleted},
+    name=#{name}, description=#{description}
+    WHERE id=#{id}
+  </update>
+
+
+
+  <insert id="createType"
+    parameterType="nbdp.trax.data.ibatis.DbType">
+    INSERT INTO types (id, name) values (#{id}, #{name})
+  </insert>
+
+  <select id="getTypes"
+    resultMap="taskTypeObjects">
+    SELECT id, name FROM types ORDER BY name
+  </select>
+
+  <select id="getTypeById"
+    parameterType="java.lang.Integer"
+    resultMap="taskTypeObjects">
+    SELECT id, name FROM types WHERE id=#{value}
+  </select>
+
+  <insert id="createTimeline"
+    parameterType="nbdp.trax.data.ibatis.DbTimeline">
+
+    INSERT INTO timelines (lineId, start, stop)
+    VALUES (#{id}, #{start}, #{stop})
+  </insert>
+
+  <insert id="createTimeslice"
+    parameterType="nbdp.trax.data.ibatis.DbTimeslice">
+    INSERT INTO timeslice (lineId, start, taskId, type, note, duration)
+    VALUES (#{timelineId}, #{start}, #{taskId}, #{typeId}, #{note}, #{duration})
+  </insert>
+
+  <select id="nextLineId"
+    resultType="java.lang.Integer">
+    SELECT nextLineId
+    FROM config
+  </select>
+
+  <update id="updateNextLineId" parameterType="int">
+    UPDATE config
+    SET nextLineId=#{value}
+  </update>
+
+  <update id="updateCurrentTimeline" parameterType="int">
+    UPDATE config
+    SET currentTimeline=#{value}
+  </update>
+
+  <select id="getCurrentTimeline"
+    resultType="java.lang.Integer">
+    SELECT currentTimeline
+    FROM config
+  </select>
+
+  <select id="nextTaskId"
+    resultType="java.lang.Integer">
+    SELECT nextTaskId
+    FROM config
+  </select>
+
+  <update id="updateNextTaskId" parameterType="int">
+    UPDATE config
+    SET nextTaskId=#{value}
+  </update>
+
+  <!-- CRUD for View Aspects -->
+  
+  <select id="viewAspectsByViewId"
+    parameterType="java.lang.String"
+    resultType="java.lang.String">
+    SELECT aspect
+    FROM viewAspects WHERE viewId=#{value}
+  </select>
+  
+  <insert id="setViewAspect"
+    parameterType="nbdp.trax.data.ViewAspect">
+    INSERT INTO viewAspects (viewId, aspect)
+    VALUES (#{viewId}, #{aspect})
+  </insert>
+  
+  <delete id="removeViewAspect" 
+    parameterType="nbdp.trax.data.ViewAspect">
+    DELETE FROM viewAspects
+    WHERE viewId=#{viewId} AND aspect=#{aspect}
+  </delete>
+  
+</mapper>

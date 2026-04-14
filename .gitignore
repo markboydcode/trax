@@ -1,0 +1,35 @@
+# Database files (contains personal time data)
+db/
+*.backup
+
+# Build output
+target/
+classes/
+
+# IDE files
+*.iml
+.idea/
+
+# Logs
+logs/
+*.log
+
+# Temp files
+tmp/
+
+# Local jars
+jars/
+
+# Old backups
+*.jar
+!src/**/*.jar
+
+# Lock files
+*.lock.db
+*.trace.db
+
+# Spring config (contains local DB credentials)
+spring-cfg.xml
+
+# OS files
+.DS_Store
