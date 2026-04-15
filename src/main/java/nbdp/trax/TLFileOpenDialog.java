@@ -3,9 +3,8 @@ import java.awt.*;
 import java.awt.event.*;
 import javax.swing.*;
 
-import org.springframework.beans.factory.xml.XmlBeanFactory;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.core.io.Resource;
+import org.springframework.boot.SpringApplication;
+import org.springframework.context.ConfigurableApplicationContext;
 
 import nbdp.trax.calendar.CalendarView;
 import nbdp.trax.calendar.DateHelper;
@@ -402,12 +401,8 @@ public class TLFileOpenDialog
     public static void main( String[] args )
     throws Exception
     {
-    Resource config = new ClassPathResource(
-        "nbdp/trax/data/ibatis/daoConfig.xml");
-    XmlBeanFactory fac = new XmlBeanFactory(config);
-    I_TraxDao dao = (I_TraxDao) fac.getBean("traxDao");
-    ServiceLocator service = new ServiceLocator();
-    service.setDAO(dao);
+    ConfigurableApplicationContext ctx = SpringApplication.run(TraxApplication.class, new String[0]);
+    ctx.getBean(ServiceLocator.class); // ensures DAO is wired
     
 	TLFileOpenDialog d = new TLFileOpenDialog( new JFrame() );
 	d.setSize( 300, 300 );

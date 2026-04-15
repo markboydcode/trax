@@ -17,7 +17,6 @@ import io.modelcontextprotocol.spec.McpSchema.JsonSchema;
 import io.modelcontextprotocol.spec.McpSchema.ServerCapabilities;
 import io.modelcontextprotocol.spec.McpSchema.Tool;
 
-import nbdp.trax.ServiceLocator;
 import nbdp.trax.data.I_Task;
 import nbdp.trax.data.I_Timeslice;
 import nbdp.trax.data.I_TraxDao;
@@ -29,9 +28,10 @@ import nbdp.trax.report.ReportEngine;
 import nbdp.trax.report.ReportEntry;
 import nbdp.trax.report.ReportResult;
 
-import org.springframework.beans.factory.xml.XmlBeanFactory;
-import org.springframework.core.io.FileSystemResource;
-import org.springframework.core.io.Resource;
+import nbdp.trax.TraxApplication;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.context.ConfigurableApplicationContext;
 
 /**
  * MCP (Model Context Protocol) server for Trax. Exposes time-tracking
@@ -59,26 +59,11 @@ public class TraxMcpServer
         "object", Map.of(), List.of(), false, null, null
     );
 
-    public static void main(String[] args)
+    public static void main(String[] args) throws InterruptedException
     {
-        // Bootstrap DAO from Spring config, same as TimelineView
-        String cfgPath = "spring-cfg.xml";
-        for (int i = 0; i < args.length - 1; i++)
-        {
-            if ("-cfg".equals(args[i]))
-            {
-                cfgPath = args[i + 1];
-                break;
-            }
-        }
-
-        Resource cfgRes = new FileSystemResource(cfgPath);
-        XmlBeanFactory cfgFac = new XmlBeanFactory(cfgRes);
-        I_TraxDao dao = (I_TraxDao) cfgFac.getBean("traxDao");
-        ServiceLocator service = new ServiceLocator();
-        service.setDAO(dao);
-
-        ReportEngine engine = new ReportEngine(dao);
+        ConfigurableApplicationContext ctx = SpringApplication.run(TraxApplication.class, args);
+        I_TraxDao dao = ctx.getBean(I_TraxDao.class);
+        ReportEngine engine = ctx.getBean(ReportEngine.class);
 
         // Build MCP server
         StdioServerTransportProvider transport = new StdioServerTransportProvider(
@@ -166,7 +151,8 @@ public class TraxMcpServer
 
             .build();
 
-        // Server runs until stdin is closed
+        // Block until stdin is closed (MCP client disconnects)
+        Thread.currentThread().join();
     }
 
     private static Period parsePeriod(Map<String, Object> args)

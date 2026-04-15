@@ -4,61 +4,43 @@ A desktop time-tracking application built with Java Swing. Trax lets you record 
 
 ## Prerequisites
 
-- Java (originally targeting JDK 5+, runs on modern JVMs)
-- Maven 2.0+
-- Local JAR dependencies in `jars/` (not committed — see `pom.xml` for system-scoped references)
+- Java 17+
+- Maven 3.6+
 
 ## Setup
 
-### Spring Configuration
+### Configuration
 
-Trax uses a Spring XML configuration file (`spring-cfg.xml`) to wire the data source and MyBatis DAO. This file is excluded from version control because it contains local database credentials.
+Copy the template and fill in your database credentials:
 
-You must create `spring-cfg.xml` in the project root with the following structure:
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE beans PUBLIC "-//SPRING//DTD BEAN//EN"
-    "http://www.springframework.org/dtd/spring-beans.dtd">
-
-<beans>
-    <bean id="configHolder" class="nbdp.trax.cfg.Holder">
-        <property name="config">
-            <map>
-                <entry key="window.classpath.image.file"
-                       value="images/alarmClockLrg.gif"/>
-            </map>
-        </property>
-    </bean>
-
-    <bean id="dataSource"
-          class="org.apache.commons.dbcp.BasicDataSource"
-          destroy-method="close">
-        <property name="driverClassName" value="org.h2.Driver"/>
-        <property name="url" value="jdbc:h2:file:./db/trax"/>
-        <property name="username" value="YOUR_USERNAME"/>
-        <property name="password" value="YOUR_PASSWORD"/>
-    </bean>
-
-    <bean id="sqlSessionFactory"
-          class="org.mybatis.spring.SqlSessionFactoryBean">
-        <property name="dataSource" ref="dataSource"/>
-        <property name="mapperLocations" value="classpath:mybatis-traxDao.xml"/>
-    </bean>
-
-    <bean id="traxDao" class="nbdp.trax.data.ibatis.TraxDao">
-        <property name="sqlSessionFactory" ref="sqlSessionFactory"/>
-    </bean>
-</beans>
+```bash
+cp application.properties.template application.properties
 ```
 
-Replace `YOUR_USERNAME` and `YOUR_PASSWORD` with your chosen H2 credentials. On first run, the database and tables are created automatically.
+Edit `application.properties`:
+
+```properties
+spring.datasource.url=jdbc:h2:file:./db/trax;AUTO_SERVER=TRUE
+spring.datasource.username=YOUR_USERNAME
+spring.datasource.password=YOUR_PASSWORD
+spring.datasource.driver-class-name=org.h2.Driver
+```
+
+This file is excluded from version control since it contains credentials.
 
 ### Database
 
-Trax uses an embedded H2 database stored in `db/trax.h2.db`. The database directory is excluded from version control since it contains personal time data.
+Trax uses an embedded H2 database stored in `db/trax.h2.db`. The database directory is excluded from version control since it contains personal time data. On first run, the database and tables are created automatically.
+
+## Building
+
+```bash
+mvn clean package
+```
 
 ## Running
+
+### Swing UI
 
 ```bash
 ./start.sh
@@ -67,13 +49,21 @@ Trax uses an embedded H2 database stored in `db/trax.h2.db`. The database direct
 Or manually:
 
 ```bash
-java -cp <classpath> nbdp.trax.TimelineView -cfg spring-cfg.xml
+java -jar target/trax-6.0.0.jar
 ```
 
-## Building
+### MCP Server
+
+The MCP server exposes time-tracking data as tools for Claude Code or other MCP clients:
 
 ```bash
-mvn clean package
+./start-mcp.sh
+```
+
+Or manually:
+
+```bash
+java -Dloader.main=nbdp.trax.mcp.TraxMcpServer -jar target/trax-6.0.0.jar
 ```
 
 ## Data Model

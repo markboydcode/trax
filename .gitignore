@@ -28,8 +28,8 @@ jars/
 *.lock.db
 *.trace.db
 
-# Spring config (contains local DB credentials)
-spring-cfg.xml
+# Local config (contains DB credentials)
+/application.properties
 
 # OS files
 .DS_Store

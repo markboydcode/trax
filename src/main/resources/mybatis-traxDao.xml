@@ -15,14 +15,14 @@
   </select>
 
   <update id="create-1">
- IF NOT EXISTS timelines (
+ CREATE TABLE IF NOT EXISTS timelines (
  lineId integer not null,
  start timestamp not null,
  stop timestamp);
   </update>
 
   <update id='create-2'>
- IF NOT EXISTS timeslice (
+ CREATE TABLE IF NOT EXISTS timeslice (
  lineId integer not null,
  start timestamp not null,
  taskId integer,
@@ -32,7 +32,7 @@
   </update>
   
   <update id='create-3'>
- IF NOT EXISTS tasks (
+ CREATE TABLE IF NOT EXISTS tasks (
  id integer not null,
  parentId integer not null,
  name varchar(2048) not null,
@@ -42,20 +42,20 @@
   </update>
   
   <update id='create-4'>
- IF NOT EXISTS config (
+ CREATE TABLE IF NOT EXISTS config (
  nextTaskId integer not null,
  nextLineId integer not null,
  currentTimeline integer);
   </update>
 
   <update id='create-5'>
- IF NOT EXISTS viewAspects (
+ CREATE TABLE IF NOT EXISTS viewAspects (
  viewId varchar(2048) not null,
  aspect varchar(2048) not null);
   </update>  
   
   <update id='create-6'>
- IF NOT EXISTS types (
+ CREATE TABLE IF NOT EXISTS types (
  id integer not null,
  name varchar(2048) not null);
   </update>

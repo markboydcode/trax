@@ -6,11 +6,8 @@ import nbdp.trax.data.Period;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.springframework.beans.factory.xml.XmlBeanFactory;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.core.io.Resource;
-import org.xml.sax.*;
-import org.xml.sax.helpers.*;
+import org.springframework.boot.SpringApplication;
+import org.springframework.context.ConfigurableApplicationContext;
 import java.io.*;
 import java.util.*;
 import java.sql.Timestamp;
@@ -103,12 +100,8 @@ public class TLFinder
         Date from = sdf.parse(s[0]);
         Date to = sdf.parse(s[1]);
 
-        Resource config = new ClassPathResource(
-            "nbdp/trax/data/ibatis/daoConfig.xml");
-        XmlBeanFactory fac = new XmlBeanFactory(config);
-        I_TraxDao dao = (I_TraxDao) fac.getBean("traxDao");
-        ServiceLocator service = new ServiceLocator();
-        service.setDAO(dao);
+        ConfigurableApplicationContext ctx = SpringApplication.run(TraxApplication.class, new String[0]);
+        ctx.getBean(ServiceLocator.class); // ensures DAO is wired
         
         TLFinder f = new TLFinder();
         List lines = f.getTimelinesForDays(from, to);

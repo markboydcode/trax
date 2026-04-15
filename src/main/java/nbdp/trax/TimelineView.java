@@ -45,15 +45,14 @@ import nbdp.trax.report.R_TimeByTask;
 import nbdp.trax.report.R_TimeByType;
 import nbdp.trax.report.R_TimeCompositeByTask;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.springframework.beans.factory.xml.XmlBeanFactory;
-import org.springframework.core.io.FileSystemResource;
-import org.springframework.core.io.Resource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.boot.SpringApplication;
+import org.springframework.context.ConfigurableApplicationContext;
 
 public class TimelineView extends JPanel implements TableModelListener
 {
-    private static final Log LOG = LogFactory.getLog(TimelineView.class);
+    private static final Logger LOG = LoggerFactory.getLogger(TimelineView.class);
     private UI_TaskManager taskManager = null;
     private static JFrame frame = null;
     private TimesliceView timesliceEditor = null;
@@ -1107,64 +1106,40 @@ public class TimelineView extends JPanel implements TableModelListener
 
     public static void main(String[] s)
     {
-    	System.out.println("-----------------");
         try
         {
-            if (LOG.isDebugEnabled())
-            {
-                LOG.debug("###### Starting TRAX ######");
+            LOG.debug("###### Starting TRAX ######");
+
+            ConfigurableApplicationContext ctx = SpringApplication.run(TraxApplication.class, s);
+            Holder configHolder = ctx.getBean(Holder.class);
+            Map cfg = configHolder.getConfig();
+
+            JFrame frame = new JFrame();
+            frame.setDefaultLookAndFeelDecorated(true);
+            String imagePath = (String) cfg.get("window.classpath.image.file");
+            ClassLoader cl = TimelineView.class.getClassLoader();
+            URL url = cl.getResource(imagePath);
+
+            if (url == null) {
+                LOG.debug("IMAGE {} unavailable via classloader.", imagePath);
             }
-        if (s.length == 0
-            || (s.length > 0 && s[0].equals("?"))
-            || !s[0].equals("-cfg")
-            || (s[0].equals("-cfg") && s.length == 1))
-            usage();
-
-        /*
-         * command line parameters -cfg <pathToSpringConfigFile>
-         */
-        Resource cfgRes = new FileSystemResource(s[1]);
-        XmlBeanFactory cfgFac = new XmlBeanFactory(cfgRes);
-        Holder configHolder = (Holder) cfgFac.getBean("configHolder");
-        Map cfg = configHolder.getConfig();
-
-        I_TraxDao dao = (I_TraxDao) cfgFac.getBean("traxDao");
-        ServiceLocator service = new ServiceLocator();
-        service.setDAO(dao);
-
-        if(dao == null)
-        {
-            RuntimeException e = new RuntimeException("no DAO available");
-            e.fillInStackTrace();
-            LOG.fatal(e.getMessage(), e);
-            throw e;
-        }
-        JFrame frame = new JFrame();
-        frame.setDefaultLookAndFeelDecorated(true);
-        String imagePath = (String) cfg.get("window.classpath.image.file");
-    	ClassLoader cl = TimelineView.class.getClassLoader();
-    	URL url = cl.getResource(imagePath);
-
-    	if (url == null) {
-    		LOG.debug("IMAGE " + imagePath + " unavailable via classloader.");
-    	}
-    	else {
-    		LOG.debug("IMAGE " + imagePath + " found at: " + url.toExternalForm());
-            ImageIcon ico = new ImageIcon(url);
-            Image img = ico.getImage();
-            frame.setIconImage(img);
-    	}
-        TimelineView tv = new TimelineView(frame);
-        frame.setSize(700, 400);
-        frame.getContentPane().add(tv);
-        frame.addWindowListener(new WindowAdapter()
-        {
-            public void windowClosing(WindowEvent we)
-            {
-                System.exit(0);
+            else {
+                LOG.debug("IMAGE {} found at: {}", imagePath, url.toExternalForm());
+                ImageIcon ico = new ImageIcon(url);
+                Image img = ico.getImage();
+                frame.setIconImage(img);
             }
-        });
-        frame.show();
+            TimelineView tv = new TimelineView(frame);
+            frame.setSize(700, 400);
+            frame.getContentPane().add(tv);
+            frame.addWindowListener(new WindowAdapter()
+            {
+                public void windowClosing(WindowEvent we)
+                {
+                    System.exit(0);
+                }
+            });
+            frame.setVisible(true);
         }
         catch(Throwable e)
         {

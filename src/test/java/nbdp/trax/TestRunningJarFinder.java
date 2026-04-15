@@ -1,6 +1,6 @@
 package nbdp.trax;
 
-import org.testng.annotations.Test;
+import org.junit.jupiter.api.Test;
 
 import java.net.MalformedURLException;
 
