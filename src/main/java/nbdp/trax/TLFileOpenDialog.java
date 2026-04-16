@@ -233,24 +233,10 @@ public class TLFileOpenDialog
 		   I_CalendarEvaluator,
 		   I_CalendarListener
     {
-	private TLFinder tlFinder = null;
 	private Vector[] timelinesOnDay = new Vector[32];
 	private GregorianCalendar gCal = new GregorianCalendar();
 	private GregorianCalendar gStartOfDay = new GregorianCalendar();
 	private GregorianCalendar gEndOfDay = new GregorianCalendar();
-
-	Helper()
-	{
-	    try
-	    {
-	        tlFinder = new TLFinder();
-	    }
-	    catch( Exception e )
-	    {
-		throw new RuntimeException( "Unable to instantiate TLFinder" +
-					    ". Details: " + e.getMessage() );
-	    }
-	}
 	
 	///// I_CalendarListener methods
 	public void itemSelected( I_CalendarListener.Item item,
@@ -299,8 +285,6 @@ public class TLFileOpenDialog
 	    Date endOfLastDOM = DateHelper.getEndOfDay( gCal.getTime() );
 	    
         I_TraxDao dao = ServiceLocator.getInstance().getDAO();
-	    //Vector tls = tlFinder.getTimelinesInPeriod( startOfFirstDOM,
-		//					endOfLastDOM );
 
 	    gStartOfDay.setTime( startOfFirstDOM );
 	    gEndOfDay.setTime( endOfLastDOM );
