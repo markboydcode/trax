@@ -1,6 +1,6 @@
 # Trax
 
-A desktop time-tracking application built with Java Swing. Trax lets you record daily work activity organized by timelines (sessions), timeslices (intervals), tasks (hierarchical), and activity types (Coding, Meeting, Email, etc.), and generate reports summarizing time by type or task.
+A desktop time-tracking application built with Java Swing. Trax lets you record daily work activity organized by timelines (sessions), timeslices (intervals), tasks (hierarchical), and activity types (Coding, Meeting, Email, etc.), and generate reports summarizing time by type or task. It also includes an [MCP server](#mcp-server) that exposes time data to Claude Code and other MCP clients.
 
 ## Prerequisites
 
