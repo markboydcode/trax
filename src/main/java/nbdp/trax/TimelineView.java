@@ -1147,6 +1147,14 @@ public class TimelineView extends JPanel implements TableModelListener
                 ImageIcon ico = new ImageIcon(url);
                 Image img = ico.getImage();
                 frame.setIconImage(img);
+                if (java.awt.Taskbar.isTaskbarSupported()) {
+                    java.awt.Taskbar taskbar = java.awt.Taskbar.getTaskbar();
+                    try {
+                        taskbar.setIconImage(img);
+                    } catch (UnsupportedOperationException e) {
+                        LOG.debug("Taskbar icon not supported on this platform.");
+                    }
+                }
             }
             TimelineView tv = new TimelineView(frame);
             frame.setSize(700, 400);

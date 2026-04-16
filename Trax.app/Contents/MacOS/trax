@@ -1,0 +1,5 @@
+#!/bin/bash
+TRAX_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+exec /usr/bin/java \
+    -Dspring.config.additional-location="file:$TRAX_DIR/application.properties" \
+    -jar "$TRAX_DIR/target/trax-6.0.0.jar"

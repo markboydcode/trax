@@ -28,11 +28,11 @@ spring.datasource.driver-class-name=org.h2.Driver
 
 This file is excluded from version control since it contains credentials.
 
-> **Note:** The relative datasource path (`./db/trax`) works when running from the trax directory (Swing UI). If you plan to register the MCP server with Claude Code or another MCP client, use an absolute path instead — see [Registering with Claude Code](#registering-with-claude-code) below.
+> **Note:** The macOS app bundle and MCP server both require an **absolute** datasource path since they don't run from the trax directory. See [Registering with Claude Code](#registering-with-claude-code) below.
 
 ### Database
 
-Trax uses an embedded H2 database stored in `db/trax.h2.db`. The database directory is excluded from version control since it contains personal time data. On first run, the database and tables are created automatically.
+Trax uses an embedded H2 database stored in `db/trax.mv.db`. The database directory is excluded from version control since it contains personal time data. On first run, the database and tables are created automatically.
 
 ## Building
 
@@ -44,15 +44,28 @@ mvn clean package
 
 ### Swing UI
 
+#### macOS (recommended)
+
+Double-click `Trax.app` in the project directory, or launch from the terminal:
+
+```bash
+open Trax.app
+```
+
+This shows "Trax" as the app name in the Dock and app switcher with a proper icon. To keep it accessible:
+
+- **Dock** — right-click the running Trax icon in the Dock and choose "Options > Keep in Dock"
+- **Applications** — drag `Trax.app` to `/Applications` or `~/Applications`
+
+#### Command line
+
+For non-macOS platforms or if you prefer the terminal:
+
 ```bash
 ./start.sh
 ```
 
-Or manually:
-
-```bash
-java -jar target/trax-6.0.0.jar
-```
+> **Note:** When launched this way, macOS shows "java" as the app name in the Dock and app switcher instead of "Trax".
 
 ### MCP Server
 

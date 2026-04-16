@@ -22,7 +22,7 @@ public class TraxConfig
     public Holder configHolder()
     {
         Holder holder = new Holder();
-        holder.setConfig(Map.of("window.classpath.image.file", "images/alarmClockLrg.gif"));
+        holder.setConfig(Map.of("window.classpath.image.file", "images/alarmClock.png"));
         return holder;
     }
 
