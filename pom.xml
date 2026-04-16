@@ -47,11 +47,10 @@
             <artifactId>spring-boot-starter-jdbc</artifactId>
         </dependency>
 
-        <!-- Database — pinned to 1.4.200 for compatibility with existing DB files -->
+        <!-- Database — version managed by Spring Boot -->
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
-            <version>1.4.200</version>
         </dependency>
 
         <!-- MyBatis -->

@@ -200,8 +200,8 @@ insert into types (id, name) values (-1,	'Misc.');
     WHERE
      (#{start} < start AND start < #{stop}) 
      OR 
-     (#{start} < dateadd('ms', duration, start) 
-      AND dateadd('ms', duration, start) < #{stop})
+     (#{start} < dateadd('MILLISECOND', duration, start)
+      AND dateadd('MILLISECOND', duration, start) < #{stop})
     ]]>
   </select>
 
