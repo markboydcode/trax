@@ -335,17 +335,6 @@ insert into types (id, name) values (-1,	'Misc.');
     SET nextLineId=#{value}
   </update>
 
-  <update id="updateCurrentTimeline" parameterType="int">
-    UPDATE config
-    SET currentTimeline=#{value}
-  </update>
-
-  <select id="getCurrentTimeline"
-    resultType="java.lang.Integer">
-    SELECT currentTimeline
-    FROM config
-  </select>
-
   <select id="nextTaskId"
     resultType="java.lang.Integer">
     SELECT nextTaskId

@@ -134,48 +134,6 @@ public class TraxDao extends SqlSessionDaoSupport implements I_TraxDao
     }
 
     /* (non-Javadoc)
-     * @see nbdp.trax.data.I_TimelineDao#getCurrentTimeline()
-     */
-    public I_Timeline getCurrentTimeline()
-    {
-        SqlSession session = this.getSqlSession();
-        Integer id = (Integer) session.selectOne("trax.getCurrentTimeline");
-
-        return null;
-    }
-
-    public I_Timeline createCurrentTimeline()
-    {
-        long time = System.currentTimeMillis();
-        Timestamp start = new Timestamp(time);
-        I_Timeline line = createTimeline(start);
-        // now set as current
-        SqlSession session = this.getSqlSession();
-        session.update("trax.updateCurrentTimeline", line.getId());
-        return line;
-    }
-
-    public void concludeCurrentTimeline()
-    {
-        I_Timeline current = getCurrentTimeline();
-
-        if (current != null) {
-            long time = System.currentTimeMillis();
-            Timestamp start = new Timestamp(time);
-            I_Timeslice newSlice = createTimeslice(current.getId(), start, I_Type.OFFLINE_TYPE_ID);
-            // now clear current
-            SqlSession session = this.getSqlSession();
-            session.update("trax.updateCurrentTimeline", null);
-        }
-    }
-
-    public void clearCurrentTimeline()
-    {
-        SqlSession session = this.getSqlSession();
-        session.update("trax.updateCurrentTimeline", null);
-    }
-
-    /* (non-Javadoc)
      * @see nbdp.trax.data.I_TraxDao#createTimeslice(int, java.sql.Timestamp)
      */
     public I_Timeslice createTimeslice(int lineId, Timestamp start, int type)

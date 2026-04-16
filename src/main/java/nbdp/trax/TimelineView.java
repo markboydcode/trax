@@ -133,36 +133,6 @@ public class TimelineView extends JPanel implements TableModelListener
                 }
             }
         });
-        actions.put("Current", new AbstractAction("Current")
-        {
-            public void actionPerformed(ActionEvent ae)
-            {
-                try
-                {
-                    I_TraxDao dao = ServiceLocator.getInstance().getDAO();
-                    I_Timeline currentLine = dao.getCurrentTimeline();
-
-                    if (currentLine == null) {
-                        return;
-                    }
-                    setCurrentTimeline(currentLine);
-                    dao.getSlices(currentLine);
-                    list.clear();
-
-                    I_Timeslice slice = null;
-                    for (Iterator i = currentLine.getSlices().iterator(); i
-                            .hasNext();)
-                    {
-                        slice = (I_Timeslice) i.next();
-                        list.add(slice);
-                    }
-                    dataModel.fireTableStructureChanged();
-                } catch (Exception e)
-                {
-                    LOG.error("Exception occurred.", e);
-                }
-            }
-        });
         actions.put("Close", new AbstractAction("Close")
         {
             public void actionPerformed(ActionEvent ae)
@@ -172,26 +142,6 @@ public class TimelineView extends JPanel implements TableModelListener
                     setCurrentTimeline(null);
                     list.clear();
                     dataModel.fireTableDataChanged();
-                } catch (Exception e)
-                {
-                    LOG.error("Exception occurred.", e);
-                }
-            }
-        });
-        actions.put("Stop", new AbstractAction("Stop Rec.")
-        {
-            public void actionPerformed(ActionEvent ae)
-            {
-                try
-                {
-                    if (currentLine == null)
-                    {
-                        I_TraxDao dao = ServiceLocator.getInstance().getDAO();
-                        dao.concludeCurrentTimeline();
-                        setCurrentTimeline(null);
-                        list.clear();
-                        dataModel.fireTableDataChanged();
-                    }
                 } catch (Exception e)
                 {
                     LOG.error("Exception occurred.", e);
@@ -209,8 +159,8 @@ public class TimelineView extends JPanel implements TableModelListener
                     {
                         list.clear(); // should already be clear
                         I_TraxDao dao = ServiceLocator.getInstance().getDAO();
-                        setCurrentTimeline(dao.createCurrentTimeline());
                         long time = System.currentTimeMillis();
+                        setCurrentTimeline(dao.createTimeline(new Timestamp(time)));
                         I_Timeslice newSlice = dao.createTimeslice(currentLine
                                 .getId(), new Timestamp(time));
                         list.add(newSlice);
@@ -225,7 +175,6 @@ public class TimelineView extends JPanel implements TableModelListener
                         if (tv.getButtonPressed() == TimesliceView.CANCEL_PRESSED)
                         {
                             dao.deleteTimeline(currentLine);
-                            dao.clearCurrentTimeline();
                             setCurrentTimeline(null);
                             list.clear();
                             dataModel.fireTableDataChanged();
@@ -524,83 +473,6 @@ public class TimelineView extends JPanel implements TableModelListener
                         }
                     }
                 });
-
-        actions.put("Create", new AbstractAction("Create")
-        {
-            public void actionPerformed(ActionEvent ae)
-            {
-                try
-                {
-                boolean timelineNewlyCreated = false;
-                I_TraxDao dao = ServiceLocator.getInstance().getDAO();
-
-                // first verify that we have a timeline
-                if (currentLine == null)
-                {
-                    long time = System.currentTimeMillis();
-                    setCurrentTimeline(dao.createTimeline(new Timestamp(time)));
-                    timelineNewlyCreated = true;
-                }
-                I_Timeslice newSlice = null;
-                if (list.size() > 0)
-                {
-                    // take last slice as proto for new one
-                    I_Timeslice last = (I_Timeslice) list.getLast();
-                    newSlice = dao.createTimeslice(currentLine.getId(), last
-                            .getStart());
-                }
-                else
-                {
-                    // use line as proto for new one
-                    newSlice = dao.createTimeslice(currentLine.getId(),
-                            currentLine.getStart());
-                }
-                TimesliceView tv = getTimesliceEditor();
-                tv.show(newSlice);
-
-                if (tv.getButtonPressed() == TimesliceView.CANCEL_PRESSED)
-                {
-                    if (timelineNewlyCreated)
-                    {
-                        dao.deleteTimeline(currentLine);
-                        setCurrentTimeline(null);
-                        list.clear();
-                        dataModel.fireTableDataChanged();
-                    }
-                    return;
-                }
-
-                if (list.size() > 0)
-                {
-                    I_Timeslice last = (I_Timeslice) list.getLast();
-                    long duration = newSlice.getStart().getTime()
-                        - last.getStart().getTime();
-
-                    // TBD: add loop here with message box indicating
-                    // that the selected start is prior to last slice
-                    // and force reselection until valid or cancel pressed.
-
-                    if (duration < 0) // start selected prior to last
-                    {
-                        RuntimeException e = new IllegalArgumentException(
-                                "Start time of a time slice must be after " +
-                                "the immediately preceding timeslice.");
-                        e.fillInStackTrace();
-                        LOG.error( e.getMessage(),e);
-                        throw e;
-                    }
-                    last.setDuration(duration);
-                }
-                list.add(newSlice);
-                save();
-                dataModel.fireTableStructureChanged();
-            }
-            catch(Exception e)
-            {
-                LOG.error("Exception occurred.", e);
-            }
-            }
-        });
 
         actions.put("Add", new AbstractAction("Add")
         {
@@ -1069,10 +941,6 @@ public class TimelineView extends JPanel implements TableModelListener
         JButton closeBtn = new JButton(actions.get("Close"));
         buttons.add(closeBtn);
 
-        // new button
-        JButton createBtn = new JButton(actions.get("Create"));
-        buttons.add(createBtn);
-
         // task manager button
         JButton taskMgrBtn = new JButton(actions.get("Tasks"));
         buttons.add(taskMgrBtn);
@@ -1088,10 +956,6 @@ public class TimelineView extends JPanel implements TableModelListener
         reportBtn.addMouseListener(popMenuMgr);
         buttons.add(reportBtn);
 
-        // new button
-        JButton currentBtn = new JButton(actions.get("Current"));
-        buttons.add(currentBtn);
-
         // start button
         JButton startBtn = new JButton(actions.get("Start"));
         buttons.add(startBtn);
@@ -1104,11 +968,6 @@ public class TimelineView extends JPanel implements TableModelListener
         // add button
         JButton addBtn = new JButton(actions.get("Add"));
         buttons.add(addBtn);
-        //	addBtn.setMargin( new Insets( 5,5,5,5 ) );
-
-        // stop button
-        JButton stopBtn = new JButton(actions.get("Stop"));
-        buttons.add(stopBtn);
 
         // scroll pane housing list
             cons = new GridBagConstraints(0, 1, // gridx, y

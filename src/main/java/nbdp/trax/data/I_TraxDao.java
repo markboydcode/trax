@@ -14,10 +14,6 @@ public interface I_TraxDao
     public I_Timeline createTimeline(Timestamp start);
     public void deleteTimeline(I_Timeline t);
     public I_Timeslice createTimeslice(int lineId, Timestamp start);
-    public I_Timeline getCurrentTimeline();
-    public I_Timeline createCurrentTimeline();
-    public void concludeCurrentTimeline();
-    public void clearCurrentTimeline();
 
     public void getSlices(I_Timeline t);
     public List getTimelinesInPeriod(Period p);
