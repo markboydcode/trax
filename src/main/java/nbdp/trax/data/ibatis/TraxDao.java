@@ -278,9 +278,35 @@ public class TraxDao extends SqlSessionDaoSupport implements I_TraxDao
             session.insert("trax.createType", types[i]);
     }
 
-    /* (non-Javadoc)
-     * @see nbdp.trax.data.I_TraxDao#getSlicesInPeriod(nbdp.trax.data.Period)
-     */
+    public I_Type createType(String name)
+    {
+        SqlSession session = this.getSqlSession();
+        Integer maxId = (Integer) session.selectOne("trax.getMaxTypeId");
+        int newId = (maxId != null ? maxId + 1 : 1);
+        DbType type = new DbType(newId, name);
+        session.insert("trax.createType", type);
+        return type;
+    }
+
+    public void updateType(I_Type type)
+    {
+        SqlSession session = this.getSqlSession();
+        session.update("trax.updateType", type);
+    }
+
+    public void deleteType(I_Type type)
+    {
+        SqlSession session = this.getSqlSession();
+        session.delete("trax.deleteType", type);
+    }
+
+    public boolean isTypeReferenced(I_Type type)
+    {
+        SqlSession session = this.getSqlSession();
+        Integer count = (Integer) session.selectOne("trax.getTypeReferenceCount", type);
+        return count != null && count > 0;
+    }
+
     public List getSlicesInPeriod(Period p)
     {
         SqlSession session = this.getSqlSession();

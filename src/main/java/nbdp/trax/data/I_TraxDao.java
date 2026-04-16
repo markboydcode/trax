@@ -25,6 +25,10 @@ public interface I_TraxDao
     public I_Type[] getTypes();
     public I_Type getTypeById(int typeId);
     public void setTypes(I_Type[] types);
+    public I_Type createType(String name);
+    public void updateType(I_Type type);
+    public void deleteType(I_Type type);
+    public boolean isTypeReferenced(I_Type type);
     public List getSlicesInPeriod(Period p);
 
     public I_Task migrateLegacyTask(int id, int parentId, int typeId,

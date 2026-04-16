@@ -277,6 +277,29 @@ insert into types (id, name) values (-1,	'Misc.');
     INSERT INTO types (id, name) values (#{id}, #{name})
   </insert>
 
+  <update id="updateType"
+    parameterType="nbdp.trax.data.ibatis.DbType">
+    UPDATE types SET name=#{name} WHERE id=#{id}
+  </update>
+
+  <delete id="deleteType"
+    parameterType="nbdp.trax.data.ibatis.DbType">
+    DELETE FROM types WHERE id=#{id}
+  </delete>
+
+  <select id="getTypeReferenceCount"
+    parameterType="nbdp.trax.data.ibatis.DbType"
+    resultType="java.lang.Integer">
+    SELECT
+      (SELECT count(*) FROM timeslice WHERE type=#{id}) +
+      (SELECT count(*) FROM tasks WHERE typeId=#{id})
+  </select>
+
+  <select id="getMaxTypeId"
+    resultType="java.lang.Integer">
+    SELECT COALESCE(MAX(id), 0) FROM types
+  </select>
+
   <select id="getTypes"
     resultMap="taskTypeObjects">
     SELECT id, name FROM types ORDER BY name

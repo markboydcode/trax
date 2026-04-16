@@ -54,6 +54,7 @@ public class TimelineView extends JPanel implements TableModelListener
 {
     private static final Logger LOG = LoggerFactory.getLogger(TimelineView.class);
     private UI_TaskManager taskManager = null;
+    private TypeManagerDialog typeManager = null;
     private static JFrame frame = null;
     private TimesliceView timesliceEditor = null;
     private R_TimeByType typeSummaryReporter = null;
@@ -379,6 +380,20 @@ public class TimelineView extends JPanel implements TableModelListener
                 } catch (Exception e)
                 {
                     LOG.error("Exception occurred editing timeslice.", e);
+                }
+            }
+        });
+        actions.put("Types", new AbstractAction("Types")
+        {
+            public void actionPerformed(ActionEvent a)
+            {
+                try
+                {
+                    TypeManagerDialog m = getTypeManager();
+                    m.showDialog();
+                } catch (Exception e)
+                {
+                    LOG.error("Exception occurred editing types.", e);
                 }
             }
         });
@@ -1062,6 +1077,10 @@ public class TimelineView extends JPanel implements TableModelListener
         JButton taskMgrBtn = new JButton(actions.get("Tasks"));
         buttons.add(taskMgrBtn);
 
+        // type manager button
+        JButton typeMgrBtn = new JButton(actions.get("Types"));
+        buttons.add(typeMgrBtn);
+
         // report button
 
         //JButton reportBtn = new JButton(actions.get("Reports"));
@@ -1156,6 +1175,15 @@ public class TimelineView extends JPanel implements TableModelListener
         }
 
         return taskManager;
+    }
+    private TypeManagerDialog getTypeManager()
+    {
+        if (typeManager == null)
+        {
+            typeManager = new TypeManagerDialog(frame);
+        }
+
+        return typeManager;
     }
     private PeriodSelectionView getPeriodSelector()
     {
