@@ -265,7 +265,7 @@ public class TraxDao extends SqlSessionDaoSupport implements I_TraxDao
     public I_Type getTypeById(int typeId)
     {
         SqlSession session = this.getSqlSession();
-        return (I_Type) session.selectOne("trax.getTypeById", new Integer(typeId));
+        return (I_Type) session.selectOne("trax.getTypeById", Integer.valueOf(typeId));
     }
 
     /* (non-Javadoc)
@@ -293,7 +293,7 @@ public class TraxDao extends SqlSessionDaoSupport implements I_TraxDao
     public String getTaskName(int taskId)
     {
         SqlSession session = this.getSqlSession();
-        return (String) session.selectOne("trax.taskNameById", new Integer(taskId));
+        return (String) session.selectOne("trax.taskNameById", Integer.valueOf(taskId));
     }
 
     /* (non-Javadoc)
@@ -302,7 +302,7 @@ public class TraxDao extends SqlSessionDaoSupport implements I_TraxDao
     public I_Task getTask(int taskId)
     {
         SqlSession session = this.getSqlSession();
-        return (I_Task) session.selectOne("trax.taskById", new Integer(taskId));
+        return (I_Task) session.selectOne("trax.taskById", Integer.valueOf(taskId));
     }
 
     /* (non-Javadoc)
@@ -311,7 +311,7 @@ public class TraxDao extends SqlSessionDaoSupport implements I_TraxDao
     public List getSubTasks(int taskId)
     {
         SqlSession session = this.getSqlSession();
-        return session.selectList("trax.subtasksByParentId", new Integer(taskId));
+        return session.selectList("trax.subtasksByParentId", Integer.valueOf(taskId));
     }
 
     /* (non-Javadoc)
@@ -324,7 +324,7 @@ public class TraxDao extends SqlSessionDaoSupport implements I_TraxDao
         Integer wrap = (Integer) session.selectOne(
                 "trax.nextTaskId", null);
         t.setId(wrap.intValue());
-        session.update("trax.updateNextTaskId", new Integer(t.getId() + 1));
+        session.update("trax.updateNextTaskId", Integer.valueOf(t.getId() + 1));
         session.insert("trax.createTask", t);
         return t;
     }
@@ -370,7 +370,7 @@ public class TraxDao extends SqlSessionDaoSupport implements I_TraxDao
     public void migrateLegacyNextTaskId(int nextTaskId)
     {
         SqlSession session = this.getSqlSession();
-        session.insert("trax.updateNextTaskId", new Integer(nextTaskId));
+        session.insert("trax.updateNextTaskId", Integer.valueOf(nextTaskId));
     }
 
     /* (non-Javadoc)
