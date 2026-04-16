@@ -142,6 +142,11 @@ public class CalendarView extends JPanel
         this.add(days);
     }
 
+    public void refresh()
+    {
+        updateView();
+    }
+
     private void updateView()
     {
         updateMonthAndYear();

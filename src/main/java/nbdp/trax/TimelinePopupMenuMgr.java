@@ -22,19 +22,19 @@ public class TimelinePopupMenuMgr
     }
 
     ////// Implementation of MouseListener Interface
-    public void mousePressed( MouseEvent e ) 
+    public void mousePressed( MouseEvent e )
     {
+        Object source = e.getSource();
+        if (source instanceof JButton)
+        {
+            JButton btn = (JButton) source;
+            reportMenu.show(btn, 0, btn.getHeight());
+            return;
+        }
         showMenu( e );
     }
     public void mouseClicked( MouseEvent e )
     {
-        showMenu( e );
-        // check to see if report button pressed
-        Object source = e.getSource();
-        if (source instanceof JButton)
-        {
-            reportMenu.showMenu(e);
-        }
     }
     public void mouseReleased( MouseEvent e )
     {

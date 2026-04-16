@@ -645,33 +645,8 @@ public class TimelineView extends JPanel implements TableModelListener
                         dataModel.fireTableDataChanged();
                         return;
                     }
-                    // update duration again incase changed
-                    if (list.size() > 1)
-                    {
-                        I_Timeslice last = (I_Timeslice) list.getFirst();
-                        I_Timeslice curr = null;
-
-                        for (int i=1; i<list.size()-1; i++)
-                        {
-                            curr = (I_Timeslice) list.get(i);
-                            long duration = curr.getStart().getTime()
-                            - last.getStart().getTime();
-                            if (duration < 0) // start selected prior to last
-                            {
-                                RuntimeException e = new IllegalArgumentException(
-                                        "Start time of time slice at index "
-                                        + i + " must be after that of the "
-                                        + "immediately preceding timeslice.");
-                                e.fillInStackTrace();
-                                LOG.error(e.getMessage(), e);
-                                throw e;
-                            }
-                            last.setDuration(duration);
-                            last = curr;
-                        }
-                    }
+                    updateDurations();
                     save();
-                    dataModel.fireTableRowsUpdated(0, list.size() - 1);
                 } catch (Exception e)
                 {
                     LOG.error("Exception occurred.", e);
@@ -741,14 +716,6 @@ public class TimelineView extends JPanel implements TableModelListener
         {
             I_Timeslice current = (I_Timeslice) list.get(i);
             I_Timeslice next = (I_Timeslice) list.get(i + 1);
-
-            System.out.println(
-                "Setting "
-                    + i
-                    + " dur from "
-                    + current.getDuration()
-                    + " to "
-                    + (next.getStart().getTime() - current.getStart().getTime()));
             current.setDuration(next.getStart().getTime()
                     - current.getStart().getTime());
         }

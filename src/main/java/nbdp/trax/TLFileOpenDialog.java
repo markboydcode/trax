@@ -109,6 +109,8 @@ public class TLFileOpenDialog
     public void show()
     {
         buttonPressed = CANCEL_PRESSED; // by default so closing window counts
+        calendar.refresh();
+        helper.updateSlicesList(calendar.getDayOfMonth());
         super.show();
     }
     public int getButtonPressed()

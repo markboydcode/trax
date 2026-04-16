@@ -172,6 +172,16 @@ public class UI_TaskManager extends JDialog
 
         });
 
+        tree.addMouseListener(new MouseAdapter()
+        {
+            public void mouseClicked(MouseEvent e)
+            {
+                if (e.getClickCount() == 2 && mode == SELECT_TASK
+                        && tree.getSelectionPath() != null)
+                    ok_button_pressed();
+            }
+        });
+
         JScrollPane scrollPane = new JScrollPane(tree);
         getContentPane().add( scrollPane, BorderLayout.CENTER );        
         
