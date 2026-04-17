@@ -67,6 +67,8 @@ For non-macOS platforms or if you prefer the terminal:
 
 > **Note:** When launched this way, macOS shows "java" as the app name in the Dock and app switcher instead of "Trax".
 
+For detailed usage instructions including report field explanations, see the [User Guide](docs/user-guide.md).
+
 ### MCP Server
 
 The MCP server exposes time-tracking data as tools for Claude Code or other MCP clients:

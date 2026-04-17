@@ -45,9 +45,6 @@ public class TypeManagerDialog extends JDialog
         tableModel = new TypeTableModel();
         table = new JTable(tableModel);
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        table.getColumnModel().getColumn(0).setPreferredWidth(40);
-        table.getColumnModel().getColumn(0).setMaxWidth(60);
-        table.getColumnModel().getColumn(1).setPreferredWidth(250);
 
         table.addMouseListener(new MouseAdapter()
         {
@@ -194,8 +191,6 @@ public class TypeManagerDialog extends JDialog
 
     private class TypeTableModel extends AbstractTableModel
     {
-        private final String[] columns = {"ID", "Name"};
-
         public int getRowCount()
         {
             return types != null ? types.length : 0;
@@ -203,23 +198,17 @@ public class TypeManagerDialog extends JDialog
 
         public int getColumnCount()
         {
-            return columns.length;
+            return 1;
         }
 
         public String getColumnName(int col)
         {
-            return columns[col];
+            return "Name";
         }
 
         public Object getValueAt(int row, int col)
         {
-            I_Type type = types[row];
-            return col == 0 ? type.getId() : type.getName();
-        }
-
-        public Class<?> getColumnClass(int col)
-        {
-            return col == 0 ? Integer.class : String.class;
+            return types[row].getName();
         }
     }
 }
