@@ -4,7 +4,7 @@ Trax is a desktop time-tracking application for recording daily work activity. T
 
 ## Main Window
 
-![Main Window](images/main-window.png)
+<img src="images/main-window.png" width="400">
 
 The main window shows the current timeline as a table of timeslices. Each row is a time interval with columns:
 
@@ -53,7 +53,7 @@ Right-clicking on **empty space** below the table shows general timeline options
 
 ## Opening a Timeline
 
-![Open Dialog](images/open-dialog.png)
+<img src="images/open-dialog.png" width="150">
 
 Press **Open** to show the calendar dialog. Days with recorded timelines are shown in color:
 
@@ -71,7 +71,7 @@ Use the arrow buttons to navigate months and years. Click a colored day to selec
 
 ## Editing a Timeslice
 
-![Slice Editor](images/slice-editor.png)
+<img src="images/slice-editor.png" width="200">
 
 The slice editor lets you set:
 
@@ -83,7 +83,7 @@ The slice editor lets you set:
 
 ## Task Manager
 
-![Task Manager](images/task-manager.png)
+<img src="images/task-manager.png" width="180">
 
 Press **Tasks** to open the task manager. Tasks are organized in a tree hierarchy. Right-click a task for options:
 
@@ -95,7 +95,7 @@ Press **Tasks** to open the task manager. Tasks are organized in a tree hierarch
 
 ## Type Manager
 
-![Type Manager](images/type-manager.png)
+<img src="images/type-manager.png" width="240">
 
 Press **Types** to manage activity types. Types are categories like Coding, Meeting, Email, etc.
 
@@ -127,7 +127,7 @@ Prompts for a date range, then shows time grouped by task across all timelines i
 
 ### Period Task Composite Summary
 
-![Composite Report](images/composite-report.png)
+<img src="images/composite-report.png" width="400">
 
 The most detailed report. Shows a hierarchical breakdown of time by task across a date range, with subtask rollups. Use **Prev. Day** and **Next. Day** to shift the period.
 
