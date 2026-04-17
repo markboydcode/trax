@@ -4,7 +4,7 @@ Trax is a desktop time-tracking application for recording daily work activity. T
 
 ## Main Window
 
-<img src="images/main-window.png" width="500">
+<img src="images/main-window.png" width="500" alt="Main window showing timeline with timeslices">
 
 The main window shows the current timeline as a table of timeslices. Each row is a time interval with columns:
 
@@ -53,7 +53,7 @@ Right-clicking on **empty space** below the table shows general timeline options
 
 ## Opening a Timeline
 
-<img src="images/open-dialog.png" width="200">
+<img src="images/open-dialog.png" width="200" alt="Calendar dialog for opening a timeline">
 
 Press **Open** to show the calendar dialog. Days with recorded timelines are shown in color:
 
@@ -71,7 +71,7 @@ Use the arrow buttons to navigate months and years. Click a colored day to selec
 
 ## Editing a Timeslice
 
-<img src="images/slice-editor.png" width="240">
+<img src="images/slice-editor.png" width="240" alt="Timeslice editor dialog">
 
 The slice editor lets you set:
 
@@ -83,7 +83,7 @@ The slice editor lets you set:
 
 ## Task Manager
 
-<img src="images/task-manager.png" width="220">
+<img src="images/task-manager.png" width="220" alt="Task manager showing hierarchical task tree">
 
 Press **Tasks** to open the task manager. Tasks are organized in a tree hierarchy. Right-click a task for options:
 
@@ -95,7 +95,7 @@ Press **Tasks** to open the task manager. Tasks are organized in a tree hierarch
 
 ## Type Manager
 
-<img src="images/type-manager.png" width="300">
+<img src="images/type-manager.png" width="300" alt="Type manager dialog for managing activity types">
 
 Press **Types** to manage activity types. Types are categories like Coding, Meeting, Email, etc.
 
@@ -127,7 +127,7 @@ Prompts for a date range, then shows time grouped by task across all timelines i
 
 ### Period Task Composite Summary
 
-<img src="images/composite-report.png" width="500">
+<img src="images/composite-report.png" width="500" alt="Period Task Composite Summary report">
 
 The most detailed report. Shows a hierarchical breakdown of time by task across a date range, with subtask rollups. Use **Prev. Day** and **Next. Day** to shift the period.
 
