@@ -95,9 +95,19 @@ public class TimesliceView
         else
             taskField.setText("");
 
-        // set up the type
+        // refresh the type list in case new types were added
+        typeField.removeAllItems();
+        I_Type[] types = dao.getTypes();
+        I_Type selectedType = null;
         int typeId = slice.getTypeId();
-        typeField.setSelectedItem(dao.getTypeById(typeId));
+        for (int i = 0; i < types.length; i++)
+        {
+            typeField.addItem(types[i]);
+            if (types[i].getId() == typeId)
+                selectedType = types[i];
+        }
+        if (selectedType != null)
+            typeField.setSelectedItem(selectedType);
 
         timeEditor.setTime(slice.getStart());
         updateView();
