@@ -1064,7 +1064,7 @@ public class TimelineView extends JPanel implements TableModelListener
         if (timesliceEditor == null)
         {
             timesliceEditor = new TimesliceView(getTaskManager(), frame);
-            timesliceEditor.setSize(220, 250);
+            timesliceEditor.setSize(220, 260);
         }
 
         return timesliceEditor;

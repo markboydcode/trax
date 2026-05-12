@@ -33,7 +33,7 @@ public class TimesliceView
   private static final Log LOG = LogFactory.getLog(TimesliceView.class);
   private static final SimpleDateFormat dff = new SimpleDateFormat("yyyy.MM.dd");
   private final JTextField taskField = new JTextField("");
-  private final JComboBox<I_Type> typeField = new JComboBox<>();
+  private final FilteringComboBox<I_Type> typeField = new FilteringComboBox<>(I_Type::getName);
   private UI_TaskManager taskManager = null;
   private int buttonPressed = CANCEL_PRESSED;
   private I_Timeslice timeslice = null;
@@ -170,8 +170,10 @@ public class TimesliceView
     else
       timeslice.setNote(note.getText());
 
-    I_Type type = (I_Type) typeField.getSelectedItem();
-    timeslice.setTypeId(type.getId());
+    I_Type type = typeField.getConfirmedSelection();
+    if (type != null) {
+      timeslice.setTypeId(type.getId());
+    }
   }
 
   private void buildUI() {
@@ -403,7 +405,7 @@ public class TimesliceView
       timeslice.setTaskId(t.getId());
       taskField.setText(t.getName());
 
-      I_Type selectedType = (I_Type) typeField.getSelectedItem();
+      I_Type selectedType = typeField.getConfirmedSelection();
 
 // allow overriding of timeslice's type only if it is misc so that
 // if a slice has already been marked with some specific type it
@@ -436,8 +438,8 @@ public class TimesliceView
         1.0, 0.0, //weightx, y
         GridBagConstraints.CENTER, // anchor
         GridBagConstraints.HORIZONTAL, // fill
-        new Insets(5, 5, 0, 5), // insets
-        0, 0); // ipadx, y
+        new Insets(5, 5, 5, 5), // insets
+        0, 6); // ipadx, ipady
     typeField.setFont(taskField.getFont());
     gbl.setConstraints(typeField, cons);
     p.add(typeField);
