@@ -13,10 +13,24 @@ public interface I_TraxDao
     public void saveTimeline(I_Timeline t);
     public I_Timeline createTimeline(Timestamp start);
     public void deleteTimeline(I_Timeline t);
-    public I_Timeslice createTimeslice(int lineId, Timestamp start);
+    /**
+     * Returns a new, unpersisted slice. It reaches the database only when its
+     * timeline is saved, so an editor that is cancelled leaves nothing behind.
+     */
+    public I_Timeslice newTimeslice(int lineId, Timestamp start);
 
     public void getSlices(I_Timeline t);
     public List getTimelinesInPeriod(Period p);
+    public I_Timeline getLatestTimeline();
+    public I_Timeline getTimelineAt(Timestamp t);
+
+    // fine-grained writes used by the MCP server. Callers run them in a
+    // transaction after lockConfig() and lockTimeline().
+    public void lockConfig();
+    public I_Timeline lockTimeline(int lineId);
+    public void updateTimeline(I_Timeline t);
+    public void insertTimeslice(I_Timeslice s);
+    public void updateTimeslice(I_Timeslice s);
 
     public I_Type[] getTypes();
     public I_Type getTypeById(int typeId);
@@ -37,6 +51,7 @@ public interface I_TraxDao
     public String getTaskName(int taskId);
     public I_Task getTask(int taskId);
     public List getSubTasks(int taskId);
+    public List getAllTasks();
     public void deleteTask(I_Task task);
     public boolean isTaskReferenced(I_Task task);
     public void moveTask(int task_id, int parent_id);

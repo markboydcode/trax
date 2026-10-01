@@ -13,12 +13,15 @@ import java.io.StringWriter;
 import java.net.URL;
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Date;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import javax.swing.AbstractAction;
 import javax.swing.Action;
@@ -30,6 +33,7 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
+import javax.swing.Timer;
 import javax.swing.event.TableModelEvent;
 import javax.swing.event.TableModelListener;
 import javax.swing.table.AbstractTableModel;
@@ -40,6 +44,7 @@ import nbdp.trax.data.I_Timeline;
 import nbdp.trax.data.I_Timeslice;
 import nbdp.trax.data.I_TraxDao;
 import nbdp.trax.data.Period;
+import nbdp.trax.data.TicketKeys;
 import nbdp.trax.report.PeriodSelectionView;
 import nbdp.trax.report.R_TimeByTask;
 import nbdp.trax.report.R_TimeByType;
@@ -73,6 +78,11 @@ public class TimelineView extends JPanel implements TableModelListener
     JTable table = null;
     private R_TimeByTask taskSummaryReporter;
     private R_TimeCompositeByTask taskCompositeSummaryReporter;
+    private static final int REFRESH_MILLIS = 10_000;
+    private static final Comparator<Object> BY_START =
+            Comparator.comparing(o -> ((I_Timeslice) o).getStart());
+    private int editsInProgress = 0;
+    private int knownLatestLineId = I_Timeline.NO_LINE_ID;
 
     private void setCurrentTimeline(I_Timeline line)
     {
@@ -95,6 +105,11 @@ public class TimelineView extends JPanel implements TableModelListener
         TimelineView.frame = frame;
         buildActionMap();
         buildUI();
+
+        I_Timeline latest = ServiceLocator.getInstance().getDAO().getLatestTimeline();
+        if (latest != null)
+            knownLatestLineId = latest.getId();
+        new Timer(REFRESH_MILLIS, e -> refresh()).start();
     }
     private void buildActionMap()
     {
@@ -114,19 +129,7 @@ public class TimelineView extends JPanel implements TableModelListener
                     if (tlFileOpener.getButtonPressed() == TLFileOpenDialog.CANCEL_PRESSED)
                         return;
 
-                    setCurrentTimeline(tlFileOpener.getSelectedTimeline());
-                    I_TraxDao dao = ServiceLocator.getInstance().getDAO();
-                    dao.getSlices(currentLine);
-                    list.clear();
-
-                    I_Timeslice slice = null;
-                    for (Iterator i = currentLine.getSlices().iterator(); i
-                            .hasNext();)
-                    {
-                        slice = (I_Timeslice) i.next();
-                        list.add(slice);
-                    }
-                    dataModel.fireTableStructureChanged();
+                    openTimeline(tlFileOpener.getSelectedTimeline());
                 } catch (Exception e)
                 {
                     LOG.error("Exception occurred.", e);
@@ -148,175 +151,9 @@ public class TimelineView extends JPanel implements TableModelListener
                 }
             }
         });
-        actions.put("Start", new AbstractAction("Start Rec.")
-        {
-            public void actionPerformed(ActionEvent ae)
-            {
-                try
-                {
-                    // see if we need a new timeline
-                    if (currentLine == null)
-                    {
-                        list.clear(); // should already be clear
-                        I_TraxDao dao = ServiceLocator.getInstance().getDAO();
-                        long time = System.currentTimeMillis();
-                        setCurrentTimeline(dao.createTimeline(new Timestamp(time)));
-                        I_Timeslice newSlice = dao.createTimeslice(currentLine
-                                .getId(), new Timestamp(time));
-                        list.add(newSlice);
-                        save();
-                        dataModel.fireTableRowsInserted(list.size() - 1, list
-                                .size() - 1);
-
-                        // now open editor for specifics now that time is recording
-                        TimesliceView tv = getTimesliceEditor();
-                        tv.show(newSlice);
-
-                        if (tv.getButtonPressed() == TimesliceView.CANCEL_PRESSED)
-                        {
-                            dao.deleteTimeline(currentLine);
-                            setCurrentTimeline(null);
-                            list.clear();
-                            dataModel.fireTableDataChanged();
-                            return;
-                        }
-                        // update duration again incase changed
-                        save();
-                        dataModel.fireTableRowsUpdated(list.size() - 1,
-                                list.size() - 1);
-                    }
-
-                } catch (Exception e)
-                {
-                    LOG.error("Exception occurred.", e);
-                }
-            }
-        });
-
-        actions.put("Launch", new AbstractAction("Launch")
-        {
-            public void actionPerformed(ActionEvent ae)
-            {
-                try
-                {
-                    if (currentLine == null)
-                    {
-                        return;
-                    }
-                    long time = System.currentTimeMillis();
-                    I_TraxDao dao = ServiceLocator.getInstance().getDAO();
-                    // see if we need a new timeline
-
-                    I_Timeslice newSlice = dao.createTimeslice(currentLine
-                            .getId(), new Timestamp(time));
-                    list.add(newSlice);
-
-                    if (list.size() > 1)
-                    {
-                        int idx = list.size() - 2;
-                        I_Timeslice last = (I_Timeslice) list.get(idx);
-                        long duration = newSlice.getStart().getTime()
-                                - last.getStart().getTime();
-
-                        // TBD: add loop here with message box indicating
-                        // that the selected start is prior to last slice
-                        // and force reselection until valid or cancel pressed.
-
-                        if (duration < 0) // start selected prior to last
-                        {
-                            RuntimeException e = new IllegalArgumentException(
-                                    "Start time of a time slice must be after "
-                                            + "the immediately preceding timeslice.");
-                            e.fillInStackTrace();
-                            LOG.error(e.getMessage(), e);
-                            throw e;
-                        }
-                        last.setDuration(duration);
-                        dataModel.fireTableRowsUpdated(idx, idx);
-                    }
-                    save();
-                    dataModel.fireTableRowsInserted(list.size() - 1, list
-                            .size() - 1);
-
-                    // now open editor for specifics now that time is recording
-                    TimesliceView tv = getTimesliceEditor();
-                    tv.show(newSlice);
-
-                    if (tv.getButtonPressed() == TimesliceView.CANCEL_PRESSED)
-                    {
-                        return;
-                    }
-                    // update duration again incase changed
-                    if (list.size() > 1)
-                    {
-                        int idx = list.size() - 2;
-                        I_Timeslice last = (I_Timeslice) list.get(idx);
-                        long duration = newSlice.getStart().getTime()
-                                - last.getStart().getTime();
-
-                        // TBD: add loop here with message box indicating
-                        // that the selected start is prior to last slice
-                        // and force reselection until valid or cancel pressed.
-
-                        if (duration < 0) // start selected prior to last
-                        {
-                            RuntimeException e = new IllegalArgumentException(
-                                    "Start time of a time slice must be after "
-                                            + "the immediately preceding timeslice.");
-                            e.fillInStackTrace();
-                            LOG.error(e.getMessage(), e);
-                            throw e;
-                        }
-                        last.setDuration(duration);
-                        dataModel.fireTableRowsUpdated(idx, idx);
-                    }
-                    save();
-                    dataModel.fireTableRowsUpdated(list.size() - 1,
-                            list.size() - 1);
-                } catch (Exception e)
-                {
-                    LOG.error("Exception occurred.", e);
-                }
-            }
-        });
-
-        actions.put("Delete", new AbstractAction("Delete")
-        {
-            public void actionPerformed(ActionEvent ae)
-            {
-                try
-                {
-                    int[] indices = table.getSelectedRows();
-                    if (indices.length == 0)
-                        return;
-                    String message = "Delete the selected Timeslice?";
-                    if (indices.length > 1)
-                        message = "Delete selected Slices?";
-
-                    int resp = JOptionPane.showConfirmDialog(frame, message,
-                            "Delete Timeslice(s)", JOptionPane.YES_NO_OPTION,
-                            JOptionPane.WARNING_MESSAGE);
-                    if (resp == JOptionPane.YES_OPTION)
-                    {
-                        if (indices.length == 0)
-                            return;
-                        // make sure that the indices are sorted then walk from
-                        // highest index to lowest so that we don't screw up
-                        // following indices when removing lower items
-                        Arrays.sort(indices);
-                        for (int i = indices.length - 1; i >= 0; i--)
-                        {
-                            list.remove(indices[i]);
-                        }
-                        updateDurations();
-                        save();
-                    }
-                } catch (Exception e)
-                {
-                    LOG.error("Exception occurred.", e);
-                }
-            }
-        });
+        actions.put("Start", editingAction("Start Rec.", this::startRecording));
+        actions.put("Launch", editingAction("Launch", this::launch));
+        actions.put("Delete", editingAction("Delete", this::deleteSelected));
         actions.put("Tasks", new AbstractAction("Tasks")
         {
             public void actionPerformed(ActionEvent a)
@@ -474,242 +311,378 @@ public class TimelineView extends JPanel implements TableModelListener
                     }
                 });
 
-        actions.put("Add", new AbstractAction("Add")
+        actions.put("Add", editingAction("Add", this::add));
+        actions.put("Edit", editingAction("Edit", this::editSelected));
+        actions.put("Insert", editingAction("Insert", this::insertBeforeSelected));
+        actions.put("Continue", editingAction("Continue", this::continueSelected));
+    }
+
+    /**
+     * Wraps a timeline edit so that the periodic refresh leaves the timeline
+     * alone while the edit's dialogs are open, and so that a rejected edit is
+     * reported and discarded.
+     */
+    private Action editingAction(String name, Runnable edit)
+    {
+        return new AbstractAction(name)
         {
             public void actionPerformed(ActionEvent ae)
             {
+                editsInProgress++;
                 try
                 {
-                    if (currentLine == null)
-                    {
-                        return;
-                    }
-                I_TraxDao dao = ServiceLocator.getInstance().getDAO();
-                I_Timeslice newSlice = null;
-                if (list.size() > 0)
+                    edit.run();
+                } catch (IllegalArgumentException e)
                 {
-                    // take last slice as proto for new one
-                    I_Timeslice last = (I_Timeslice) list.getLast();
-                    newSlice = dao.createTimeslice(currentLine.getId(), last
-                            .getStart());
-                }
-                else
-                {
-                    // use line as proto for new one
-                    newSlice = dao.createTimeslice(currentLine.getId(),
-                            currentLine.getStart());
-                }
-                TimesliceView tv = getTimesliceEditor();
-                tv.show(newSlice);
-
-                if (tv.getButtonPressed() == TimesliceView.CANCEL_PRESSED)
-                {
-                    /*
-                     *TODO: ADD remove dao.timeSlice to remove aliased slices
-                     *
-                    if (timelineNewlyCreated)
-                    {
-                        dao.deleteTimeline(currentLine);
-                        setCurrentTimeline(null);
-                        list.clear();
-                        dataModel.fireTableDataChanged();
-                    }
-                    */
-                    return;
-                }
-
-                if (list.size() > 0)
-                {
-                    I_Timeslice last = (I_Timeslice) list.getLast();
-                    long duration = newSlice.getStart().getTime()
-                        - last.getStart().getTime();
-
-                    // TBD: add loop here with message box indicating
-                    // that the selected start is prior to last slice
-                    // and force reselection until valid or cancel pressed.
-
-                    if (duration < 0) // start selected prior to last
-                    {
-                        RuntimeException e = new IllegalArgumentException(
-                                "Start time of a time slice must be after " +
-                                "the immediately preceding timeslice.");
-                        e.fillInStackTrace();
-                        LOG.error( e.getMessage(),e);
-                        throw e;
-                    }
-                    last.setDuration(duration);
-                }
-                list.add(newSlice);
-                save();
-                dataModel.fireTableStructureChanged();
-            }
-            catch(Exception e)
-            {
-                LOG.error("Exception occurred.", e);
-            }
-            }
-        });
-
-        actions.put("Edit", new AbstractAction("Edit")
-        {
-            public void actionPerformed(ActionEvent ae)
-            {
-                try
-                {
-                int idx = table.getSelectedRow();
-                if (idx == -1)
-                    return;
-                I_Timeslice real = (I_Timeslice) list.get(idx);
-                I_Timeslice copy = real.copy();
-                TimesliceView tv = getTimesliceEditor();
-                tv.show(copy);
-
-                if (tv.getButtonPressed() == TimesliceView.CANCEL_PRESSED)
-                    return;
-
-                if (idx > 0)
-                {
-                    I_Timeslice last = (I_Timeslice) list.get(idx - 1);
-                    I_Timeslice next =
-                        (list.size() > idx + 1
-                            ? (I_Timeslice) list.get(idx + 1)
-                            : null);
-
-                    // TBD: add loop here with message box indicating
-                    // that the selected start is prior to last slice
-                    // and force reselection until valid or cancel pressed.
-                    if (last.getStart().getTime() > copy.getStart().getTime()
-                            || (next != null && next.getStart().getTime() < copy
-                                    .getStart().getTime()))
-                    {
-                        RuntimeException e = new IllegalArgumentException(
-                                "Start time of a time slice must be after " +
-                                "the immediately preceding timeslice and " +
-                                "before immediately following timeslice.");
-                        e.fillInStackTrace();
-                        LOG.error( e.getMessage(),e);
-                        throw e;
-                    }
-                }
-                real.setStart(copy.getStart());
-                real.setTaskId(copy.getTaskId());
-                real.setTypeId(copy.getTypeId());
-                real.setNote(copy.getNote());
-                updateDurations();
-                save();
-
-                /*		    if ( idx > 0 )
-                dataModel.fireTableRowsUpdated( idx-1, idx );
-                else
-                dataModel.fireTableRowsUpdated( idx, idx );
-                */
-                }
-                catch(Exception e)
-                {
-                    LOG.error("Exception occurred.", e);
-                }
-            }
-        });
-
-        actions.put("Insert", new AbstractAction("Insert")
-        {
-            public void actionPerformed(ActionEvent ae)
-            {
-                try
-                {
-                    long time = System.currentTimeMillis();
-                    I_TraxDao dao = ServiceLocator.getInstance().getDAO();
-
-                    int idx = table.getSelectedRow();
-                    if (idx == -1)
-                        return;
-
-                    // take slice under mouse as proto for new one
-                    I_Timeslice currentSlice = (I_Timeslice) list.get(idx);
-                    I_Timeslice newSlice = dao.createTimeslice(
-                            currentLine.getId(), currentSlice.getStart());
-                    list.add(idx, newSlice);
-                    save();
-                    dataModel.fireTableRowsInserted(idx, idx);
-                    table.getSelectionModel().clearSelection();
-                    table.getSelectionModel().setSelectionInterval(idx, idx);
-
-                    // now open editor for specifics
-                    TimesliceView tv = getTimesliceEditor();
-                    tv.show(newSlice);
-
-                    if (tv.getButtonPressed() == TimesliceView.CANCEL_PRESSED)
-                    {
-                        list.remove(idx);
-                        save();
-                        dataModel.fireTableDataChanged();
-                        return;
-                    }
-                    updateDurations();
-                    save();
+                    LOG.error(e.getMessage(), e);
+                    JOptionPane.showMessageDialog(frame, e.getMessage(), name,
+                            JOptionPane.ERROR_MESSAGE);
+                    reload();
                 } catch (Exception e)
                 {
                     LOG.error("Exception occurred.", e);
+                } finally
+                {
+                    editsInProgress--;
                 }
             }
-        });
-
-        actions.put("Continue", new AbstractAction("Continue")
-        {
-            public void actionPerformed(ActionEvent ae)
-            {
-                try
-                {
-                if (table.getSelectedRow() < 0)
-                    return;
-
-                // take selected slice as proto for new one
-                I_Timeslice selected =
-                    (I_Timeslice) list.get(table.getSelectedRow());
-                I_TraxDao dao = ServiceLocator.getInstance().getDAO();
-                I_Timeslice newSlice = dao.createTimeslice(currentLine.getId(),
-                        new Timestamp(System.currentTimeMillis()));
-
-                newSlice.setNote(selected.getNote());
-                newSlice.setTaskId(selected.getTaskId());
-                newSlice.setTypeId(selected.getTypeId());
-                list.add(newSlice);
-
-                if (list.size() > 1)
-                {
-                    int idx = list.size() - 2;
-                    I_Timeslice last = (I_Timeslice) list.get(idx);
-                    long duration = newSlice.getStart().getTime()
-                            - last.getStart().getTime();
-
-                    // TBD: add loop here with message box indicating
-                    // that the selected start is prior to last slice
-                    // and force reselection until valid or cancel pressed.
-
-                    if (duration < 0) // start selected prior to last
-                    {
-                        RuntimeException e = new IllegalArgumentException(
-                                "Start time of a time slice must be after " +
-                                "the immediately preceding timeslice.");
-                        e.fillInStackTrace();
-                        LOG.error( e.getMessage(),e);
-                        throw e;
-                    }
-                    last.setDuration(duration);
-                    dataModel.fireTableRowsUpdated(idx, idx);
-                }
-                save();
-                dataModel.fireTableRowsInserted(
-                    list.size() - 1,
-                    list.size() - 1);
-                }
-                catch(Exception e)
-                {
-                    LOG.error("Exception occurred.", e);
-                }
-            }
-        });
+        };
     }
+
+    private void startRecording()
+    {
+        // see if we need a new timeline
+        if (currentLine != null)
+            return;
+        list.clear(); // should already be clear
+        I_TraxDao dao = ServiceLocator.getInstance().getDAO();
+        long time = System.currentTimeMillis();
+        setCurrentTimeline(dao.createTimeline(new Timestamp(time)));
+        knownLatestLineId = currentLine.getId();
+        I_Timeslice newSlice = dao.newTimeslice(currentLine.getId(), new Timestamp(time));
+        list.add(newSlice);
+        save();
+        dataModel.fireTableRowsInserted(list.size() - 1, list.size() - 1);
+
+        // now open editor for specifics now that time is recording
+        Timestamp recorded = newSlice.getStart();
+        TimesliceView tv = getTimesliceEditor();
+        tv.show(newSlice);
+
+        if (tv.getButtonPressed() == TimesliceView.CANCEL_PRESSED)
+        {
+            dao.deleteTimeline(currentLine);
+            setCurrentTimeline(null);
+            list.clear();
+            dataModel.fireTableDataChanged();
+            return;
+        }
+        applyEdit(recorded, null, newSlice);
+    }
+
+    private void launch()
+    {
+        if (currentLine == null)
+            return;
+        reload();
+        I_TraxDao dao = ServiceLocator.getInstance().getDAO();
+        I_Timeslice newSlice = dao.newTimeslice(currentLine.getId(),
+                new Timestamp(System.currentTimeMillis()));
+        list.add(newSlice);
+        sortSlices();
+        updateDurations();
+        save();
+
+        // now open editor for specifics now that time is recording
+        Timestamp recorded = newSlice.getStart();
+        TimesliceView tv = getTimesliceEditor();
+        tv.show(newSlice);
+
+        if (tv.getButtonPressed() == TimesliceView.CANCEL_PRESSED)
+            return;
+        applyEdit(recorded, null, newSlice);
+    }
+
+    private void deleteSelected()
+    {
+        int[] indices = table.getSelectedRows();
+        if (indices.length == 0)
+            return;
+        String message = "Delete the selected Timeslice?";
+        if (indices.length > 1)
+            message = "Delete selected Slices?";
+
+        int resp = JOptionPane.showConfirmDialog(frame, message,
+                "Delete Timeslice(s)", JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+        if (resp != JOptionPane.YES_OPTION)
+            return;
+
+        // reloading keeps the selection on the same slices
+        reload();
+        indices = table.getSelectedRows();
+        // make sure that the indices are sorted then walk from
+        // highest index to lowest so that we don't screw up
+        // following indices when removing lower items
+        Arrays.sort(indices);
+        for (int i = indices.length - 1; i >= 0; i--)
+        {
+            list.remove(indices[i]);
+        }
+        updateDurations();
+        save();
+    }
+
+    private void add()
+    {
+        if (currentLine == null)
+            return;
+        reload();
+        I_TraxDao dao = ServiceLocator.getInstance().getDAO();
+        // take last slice, or else the line, as proto for new one
+        Timestamp start = list.isEmpty() ? currentLine.getStart()
+                : ((I_Timeslice) list.getLast()).getStart();
+        I_Timeslice newSlice = dao.newTimeslice(currentLine.getId(), start);
+        TimesliceView tv = getTimesliceEditor();
+        tv.show(newSlice);
+
+        if (tv.getButtonPressed() == TimesliceView.CANCEL_PRESSED)
+            return;
+        insertSlice(newSlice);
+    }
+
+    private void editSelected()
+    {
+        if (currentLine == null)
+            return;
+        reload();
+        int idx = table.getSelectedRow();
+        if (idx == -1)
+            return;
+        I_Timeslice real = (I_Timeslice) list.get(idx);
+        I_Timeslice copy = real.copy();
+        TimesliceView tv = getTimesliceEditor();
+        tv.show(copy);
+
+        if (tv.getButtonPressed() == TimesliceView.CANCEL_PRESSED)
+            return;
+        applyEdit(real.getStart(), real.getNote(), copy);
+    }
+
+    /**
+     * Opens the editor on a new slice and adds it to the timeline only when
+     * OK is pressed, so the timeline is never saved with the slice out of order.
+     */
+    private void insertBeforeSelected()
+    {
+        if (currentLine == null)
+            return;
+        reload();
+        int idx = table.getSelectedRow();
+        if (idx == -1)
+            return;
+
+        // take slice under mouse as proto for new one
+        I_Timeslice selected = (I_Timeslice) list.get(idx);
+        I_TraxDao dao = ServiceLocator.getInstance().getDAO();
+        I_Timeslice newSlice = dao.newTimeslice(currentLine.getId(), selected.getStart());
+        TimesliceView tv = getTimesliceEditor();
+        tv.show(newSlice);
+
+        if (tv.getButtonPressed() == TimesliceView.CANCEL_PRESSED)
+            return;
+        insertSlice(newSlice);
+    }
+
+    private void continueSelected()
+    {
+        if (currentLine == null)
+            return;
+        reload();
+        if (table.getSelectedRow() < 0)
+            return;
+
+        // take selected slice as proto for new one
+        I_Timeslice selected = (I_Timeslice) list.get(table.getSelectedRow());
+        I_TraxDao dao = ServiceLocator.getInstance().getDAO();
+        I_Timeslice newSlice = dao.newTimeslice(currentLine.getId(),
+                new Timestamp(System.currentTimeMillis()));
+
+        newSlice.setNote(selected.getNote());
+        newSlice.setTaskId(selected.getTaskId());
+        newSlice.setTypeId(selected.getTypeId());
+        list.add(newSlice);
+        sortSlices();
+        updateDurations();
+        save();
+    }
+
+    /**
+     * Applies a slice edited in a dialog to the timeline as it now is in the
+     * database. Ticket keys that another process, such as a Claude Code session,
+     * added to the slice's note while the dialog was open are kept.
+     */
+    private void applyEdit(Timestamp originalStart, String noteBefore, I_Timeslice edited)
+    {
+        reload();
+        int idx = indexOfStart(originalStart);
+        if (idx < 0)
+        {
+            // removed elsewhere while being edited; keep the user's version
+            insertSlice(edited);
+            return;
+        }
+        I_Timeslice target = (I_Timeslice) list.get(idx);
+        I_Timeslice prev = idx > 0 ? (I_Timeslice) list.get(idx - 1) : null;
+        I_Timeslice next = idx + 1 < list.size() ? (I_Timeslice) list.get(idx + 1) : null;
+        long start = edited.getStart().getTime();
+        if ((prev != null && prev.getStart().getTime() >= start)
+                || (next != null && next.getStart().getTime() <= start))
+        {
+            throw new IllegalArgumentException(
+                    "Start time of a time slice must be after " +
+                    "the immediately preceding timeslice and " +
+                    "before immediately following timeslice.");
+        }
+        target.setStart(edited.getStart());
+        target.setTaskId(edited.getTaskId());
+        target.setTypeId(edited.getTypeId());
+        target.setNote(TicketKeys.mergeExternal(edited.getNote(), noteBefore, target.getNote()));
+        updateDurations();
+        save();
+    }
+
+    /** Adds a slice at its start time, recomputing its neighbours' durations. */
+    private void insertSlice(I_Timeslice slice)
+    {
+        reload();
+        if (indexOfStart(slice.getStart()) >= 0)
+        {
+            throw new IllegalArgumentException("A slice already starts at "
+                    + timeF.format(slice.getStart()) + ".");
+        }
+        list.add(slice);
+        list.sort(BY_START);
+        updateDurations();
+        save();
+        int idx = list.indexOf(slice);
+        table.getSelectionModel().setSelectionInterval(idx, idx);
+    }
+
+    private void sortSlices()
+    {
+        list.sort(BY_START);
+        for (int i = 1; i < list.size(); i++)
+        {
+            Timestamp start = ((I_Timeslice) list.get(i)).getStart();
+            if (start.equals(((I_Timeslice) list.get(i - 1)).getStart()))
+            {
+                throw new IllegalArgumentException("Two slices start at "
+                        + timeF.format(start) + ".");
+            }
+        }
+    }
+
+    private int indexOfStart(Timestamp start)
+    {
+        for (int i = 0; i < list.size(); i++)
+        {
+            if (((I_Timeslice) list.get(i)).getStart().equals(start))
+                return i;
+        }
+        return -1;
+    }
+
+    private void openTimeline(I_Timeline line)
+    {
+        setCurrentTimeline(line);
+        I_TraxDao dao = ServiceLocator.getInstance().getDAO();
+        dao.getSlices(currentLine);
+        list.clear();
+        list.addAll(currentLine.getSlices());
+        currentLine.setSlices(list);
+        dataModel.fireTableStructureChanged();
+    }
+
+    /**
+     * Re-reads the open timeline so that edits start from what other processes,
+     * such as the MCP server, have written. Keeps the selection on the same
+     * slices.
+     */
+    private void reload()
+    {
+        if (currentLine == null)
+            return;
+        I_TraxDao dao = ServiceLocator.getInstance().getDAO();
+        dao.getSlices(currentLine);
+        List fresh = currentLine.getSlices();
+        currentLine.setSlices(list);
+        if (sameSlices(list, fresh))
+            return;
+
+        List<Timestamp> selected = new ArrayList<>();
+        for (int row : table.getSelectedRows())
+            selected.add(((I_Timeslice) list.get(row)).getStart());
+        list.clear();
+        list.addAll(fresh);
+        dataModel.fireTableDataChanged();
+        for (Timestamp start : selected)
+        {
+            int row = indexOfStart(start);
+            if (row >= 0)
+                table.getSelectionModel().addSelectionInterval(row, row);
+        }
+    }
+
+    private static boolean sameSlices(List a, List b)
+    {
+        if (a.size() != b.size())
+            return false;
+        for (int i = 0; i < a.size(); i++)
+        {
+            I_Timeslice x = (I_Timeslice) a.get(i);
+            I_Timeslice y = (I_Timeslice) b.get(i);
+            if (!x.getStart().equals(y.getStart())
+                    || x.getTaskId() != y.getTaskId()
+                    || x.getTypeId() != y.getTypeId()
+                    || x.getDuration() != y.getDuration()
+                    || !Objects.equals(x.getNote(), y.getNote()))
+                return false;
+        }
+        return true;
+    }
+
+    /**
+     * Picks up changes made outside the UI. Opens a timeline another process
+     * started, unless an older timeline is being viewed.
+     */
+    private void refresh()
+    {
+        if (editsInProgress > 0)
+            return;
+        try
+        {
+            I_TraxDao dao = ServiceLocator.getInstance().getDAO();
+            I_Timeline latest = dao.getLatestTimeline();
+            if (latest != null && latest.getId() != knownLatestLineId)
+            {
+                boolean viewingLatest = currentLine == null
+                        || currentLine.getId() == knownLatestLineId;
+                knownLatestLineId = latest.getId();
+                if (viewingLatest && latest.getStart().toLocalDateTime()
+                        .toLocalDate().equals(LocalDate.now()))
+                {
+                    openTimeline(latest);
+                    return;
+                }
+            }
+            reload();
+        } catch (Exception e)
+        {
+            LOG.error("Unable to refresh the timeline.", e);
+        }
+    }
+
     private void updateDurations()
     {
         for (int i = 0; i < list.size() - 1; i++)

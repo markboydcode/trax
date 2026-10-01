@@ -71,7 +71,21 @@ For detailed usage instructions including report field explanations, see the [Us
 
 ### MCP Server
 
-The MCP server exposes time-tracking data as tools for Claude Code or other MCP clients:
+The MCP server exposes time-tracking data as tools for Claude Code or other MCP clients.
+
+Read tools: `get_time_entries`, `get_time_by_type`, `get_time_by_task`, `get_time_by_task_hierarchy`, `get_tasks`, `get_types` and `get_current_slice`.
+
+Write tools let several Claude Code sessions keep the current timeline's notes naming the Jira tickets they work on:
+
+| Tool | Effect |
+|------|--------|
+| `tag_current_slice(ticket)` | Adds a ticket key to the running slice's note unless it is already there |
+| `tag_slice(time, ticket)` | Same, for the slice running at a past time |
+| `start_slice(task, type, note)` | Ends the running slice and starts a new one now |
+| `stop_slice()` | Ends the running slice by going Off-line |
+| `insert_slice(start, task, type, note, end)` | Inserts a forgotten slice; with `end`, the interrupted slice resumes afterward |
+
+The server's instructions tell sessions that only tagging the current slice may happen without asking; the other write tools change the timeline and need the user's say-so. Each write is one transaction that locks the timeline, so concurrent sessions and the Swing UI never overwrite one another, and the UI picks up outside changes within 10 seconds.
 
 ```bash
 ./start-mcp.sh

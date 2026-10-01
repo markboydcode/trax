@@ -18,6 +18,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.ibatis.session.SqlSession;
 import org.mybatis.spring.support.SqlSessionDaoSupport;
 import org.springframework.jdbc.BadSqlGrammarException;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Provides access to trax DB using IBatis constructs.
@@ -27,6 +28,12 @@ import org.springframework.jdbc.BadSqlGrammarException;
 public class TraxDao extends SqlSessionDaoSupport implements I_TraxDao
 {
 	private static Log cLog = LogFactory.getLog(TraxDao.class);
+
+	private TransactionTemplate transactionTemplate;
+
+	public void setTransactionTemplate(TransactionTemplate transactionTemplate) {
+		this.transactionTemplate = transactionTemplate;
+	}
 
 	
     @Override
@@ -114,6 +121,11 @@ public class TraxDao extends SqlSessionDaoSupport implements I_TraxDao
 
     public I_Timeline createTimeline(Timestamp start)
     {
+        return transactionTemplate.execute(status -> createTimelineInTx(start));
+    }
+
+    private I_Timeline createTimelineInTx(Timestamp start)
+    {
         DbTimeline line = new DbTimeline();
         line.setStart(start);
         line.setStop(start);
@@ -134,24 +146,17 @@ public class TraxDao extends SqlSessionDaoSupport implements I_TraxDao
     }
 
     /* (non-Javadoc)
-     * @see nbdp.trax.data.I_TraxDao#createTimeslice(int, java.sql.Timestamp)
-     */
-    public I_Timeslice createTimeslice(int lineId, Timestamp start, int type)
-    {
-        SqlSession session = this.getSqlSession();
-        DbTimeslice slice = new DbTimeslice();
-        slice.setTypeId(type);
-        slice.setStart(start);
-        slice.setTimelineId(lineId);
-        session.insert("trax.createTimeslice", slice);
-        return slice;
-    }
-
-
-    /* (non-Javadoc)
      * @see nbdp.trax.data.I_TimelineDao#saveTimeline(nbdp.trax.data.DbTimeline)
      */
     public void saveTimeline(I_Timeline t)
+    {
+        // one transaction, holding the timeline's row lock, so that other
+        // processes never see the slices half rewritten and their own writes
+        // to this timeline wait until the rewrite commits
+        transactionTemplate.executeWithoutResult(status -> saveTimelineInTx(t));
+    }
+
+    private void saveTimelineInTx(I_Timeline t)
     {
         SqlSession session = this.getSqlSession();
         if (t.getId() == -1) // possibly unpersisted line
@@ -172,12 +177,16 @@ public class TraxDao extends SqlSessionDaoSupport implements I_TraxDao
                 t.setId(getNextLineId(session));
             }
         }
-        // now clear out the old before inserting anew if applicable
-        session.delete("trax.deleteTimeline", t);
+        // update the line in place rather than delete it so that its row lock
+        // is held until commit; then replace its slices
+        boolean exists = session.selectOne("trax.lockTimeline", t.getId()) != null;
         session.delete("trax.deleteSlicesForTimeline", t);
 
-        // now insert into DB
-        session.insert("trax.createTimeline", t);
+        if (exists)
+            session.update("trax.updateTimeline", t);
+        else
+            session.insert("trax.createTimeline", t);
+
         List slices = t.getSlices();
         if (slices != null && slices.size() > 0)
         {
@@ -208,6 +217,48 @@ public class TraxDao extends SqlSessionDaoSupport implements I_TraxDao
     {
         SqlSession session = this.getSqlSession();
         return session.selectList("trax.getTimelinesInPeriod", period);
+    }
+
+    public I_Timeline getLatestTimeline()
+    {
+        SqlSession session = this.getSqlSession();
+        return (I_Timeline) session.selectOne("trax.latestTimeline");
+    }
+
+    public I_Timeline getTimelineAt(Timestamp t)
+    {
+        SqlSession session = this.getSqlSession();
+        return (I_Timeline) session.selectOne("trax.timelineAt", t);
+    }
+
+    public void lockConfig()
+    {
+        SqlSession session = this.getSqlSession();
+        session.selectOne("trax.lockConfig");
+    }
+
+    public I_Timeline lockTimeline(int lineId)
+    {
+        SqlSession session = this.getSqlSession();
+        return (I_Timeline) session.selectOne("trax.lockTimeline", Integer.valueOf(lineId));
+    }
+
+    public void updateTimeline(I_Timeline t)
+    {
+        SqlSession session = this.getSqlSession();
+        session.update("trax.updateTimeline", t);
+    }
+
+    public void insertTimeslice(I_Timeslice s)
+    {
+        SqlSession session = this.getSqlSession();
+        session.insert("trax.createTimeslice", s);
+    }
+
+    public void updateTimeslice(I_Timeslice s)
+    {
+        SqlSession session = this.getSqlSession();
+        session.update("trax.updateTimeslice", s);
     }
 
     /** Return the set of supported types.
@@ -298,6 +349,12 @@ public class TraxDao extends SqlSessionDaoSupport implements I_TraxDao
         return session.selectList("trax.subtasksByParentId", Integer.valueOf(taskId));
     }
 
+    public List getAllTasks()
+    {
+        SqlSession session = this.getSqlSession();
+        return session.selectList("trax.allTasks");
+    }
+
     /* (non-Javadoc)
      * @see nbdp.trax.data.I_TraxDao#createTask(int, int, int, java.lang.String, java.lang.String)
      */
@@ -358,11 +415,15 @@ public class TraxDao extends SqlSessionDaoSupport implements I_TraxDao
     }
 
     /* (non-Javadoc)
-     * @see nbdp.trax.data.I_TraxDao#createTimeslice(int, java.sql.Timestamp)
+     * @see nbdp.trax.data.I_TraxDao#newTimeslice(int, java.sql.Timestamp)
      */
-    public I_Timeslice createTimeslice(int lineId, Timestamp start)
+    public I_Timeslice newTimeslice(int lineId, Timestamp start)
     {
-        return createTimeslice(lineId, start, I_Type.MISC_TYPE_ID);
+        DbTimeslice slice = new DbTimeslice();
+        slice.setTypeId(I_Type.MISC_TYPE_ID);
+        slice.setStart(start);
+        slice.setTimelineId(lineId);
+        return slice;
     }
 
     /* (non-Javadoc)
@@ -370,9 +431,11 @@ public class TraxDao extends SqlSessionDaoSupport implements I_TraxDao
      */
     public void deleteTimeline(I_Timeline t)
     {
-        SqlSession session = this.getSqlSession();
-        session.delete("trax.deleteTimeline", t);
-        session.delete("trax.deleteSlicesForTimeline", t);
+        transactionTemplate.executeWithoutResult(status -> {
+            SqlSession session = this.getSqlSession();
+            session.delete("trax.deleteTimeline", t);
+            session.delete("trax.deleteSlicesForTimeline", t);
+        });
     }
 
     /* (non-Javadoc)

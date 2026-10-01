@@ -2,11 +2,13 @@ package nbdp.trax.mcp;
 
 import java.sql.Timestamp;
 import java.text.DecimalFormat;
+import java.time.Clock;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.McpSyncServer;
@@ -32,6 +34,7 @@ import nbdp.trax.TraxApplication;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * MCP (Model Context Protocol) server for Trax. Exposes time-tracking
@@ -59,11 +62,41 @@ public class TraxMcpServer
         "object", Map.of(), List.of(), false, null, null
     );
 
+    private static final String INSTRUCTIONS = """
+        Trax holds the user's single time-tracking timeline, shared by all of their \
+        Claude Code sessions. Each slice's note must name every Jira ticket worked \
+        during it, because Jira time is later split across the tickets a note names.
+
+        - tag_current_slice is safe: call it without asking. It is idempotent.
+        - start_slice, stop_slice, insert_slice and tag_slice change the user's \
+        timeline. Call them only when the user asks, or after asking and getting a yes.
+        - The first time this session starts work on a Jira ticket, ask the user \
+        whether to tag the current slice with it or start a new slice, then follow \
+        that answer for the rest of the session. If the answer was to tag, call \
+        tag_current_slice again whenever you resume work on the ticket, since the \
+        user may have switched slices in the meantime.
+        """;
+
+    private static final Map<String, Object> TICKET_PROP = Map.of(
+        "type", "string", "description", "Jira ticket key, e.g. home-5156");
+    private static final Map<String, Object> TASK_PROP = Map.of(
+        "type", "string", "description",
+        "Task name (exact, case-insensitive) or numeric id from get_tasks; 'Unassigned' for none");
+    private static final Map<String, Object> TYPE_PROP = Map.of(
+        "type", "string", "description",
+        "Activity type name from get_types; defaults to the task's type");
+    private static final Map<String, Object> NOTE_PROP = Map.of(
+        "type", "string", "description", "Note; start it with the ticket keys worked, e.g. 'home-5156 jspecify'");
+    private static final String TIME_FORMATS =
+        "13:00, 1:00 PM, or with a date: 2026-10-01 13:00 (no date means today)";
+
     public static void main(String[] args) throws InterruptedException
     {
         ConfigurableApplicationContext ctx = SpringApplication.run(TraxApplication.class, args);
         I_TraxDao dao = ctx.getBean(I_TraxDao.class);
         ReportEngine engine = ctx.getBean(ReportEngine.class);
+        SliceService sliceService = new SliceService(dao, ctx.getBean(TransactionTemplate.class),
+            Clock.systemDefaultZone());
 
         // Build MCP server
         StdioServerTransportProvider transport = new StdioServerTransportProvider(
@@ -73,6 +106,7 @@ public class TraxMcpServer
         McpSyncServer server = McpServer.sync(transport)
             .serverInfo("trax", "1.0.0")
             .capabilities(ServerCapabilities.builder().tools(true).build())
+            .instructions(INSTRUCTIONS)
 
             // --- get_time_entries ---
             .toolCall(
@@ -149,10 +183,122 @@ public class TraxMcpServer
                 }
             )
 
+            // --- get_current_slice ---
+            .toolCall(
+                Tool.builder()
+                    .name("get_current_slice")
+                    .description("Get the slice the user is recording now: task, type, start time and note.")
+                    .inputSchema(EMPTY_SCHEMA)
+                    .build(),
+                (exchange, request) -> run(sliceService::getCurrentSlice)
+            )
+
+            // --- get_types ---
+            .toolCall(
+                Tool.builder()
+                    .name("get_types")
+                    .description("List the activity types a slice may have.")
+                    .inputSchema(EMPTY_SCHEMA)
+                    .build(),
+                (exchange, request) -> run(sliceService::getTypes)
+            )
+
+            // --- tag_current_slice ---
+            .toolCall(
+                Tool.builder()
+                    .name("tag_current_slice")
+                    .description("Add a Jira ticket key to the note of the slice being recorded now, "
+                        + "unless the note already names it. Safe to call without asking the user; idempotent.")
+                    .inputSchema(schema(Map.of("ticket", TICKET_PROP), "ticket"))
+                    .build(),
+                (exchange, request) -> run(() -> sliceService.tagCurrentSlice(arg(request.arguments(), "ticket")))
+            )
+
+            // --- tag_slice ---
+            .toolCall(
+                Tool.builder()
+                    .name("tag_slice")
+                    .description("Add a Jira ticket key to the note of the slice that was running at a past time. "
+                        + "Changes the user's timeline: call only when the user asks or agrees.")
+                    .inputSchema(schema(Map.of(
+                        "time", Map.of("type", "string", "description", "A time within the slice: " + TIME_FORMATS),
+                        "ticket", TICKET_PROP), "time", "ticket"))
+                    .build(),
+                (exchange, request) -> run(() -> sliceService.tagSlice(
+                    arg(request.arguments(), "time"), arg(request.arguments(), "ticket")))
+            )
+
+            // --- start_slice ---
+            .toolCall(
+                Tool.builder()
+                    .name("start_slice")
+                    .description("End the slice being recorded and start a new one now. Starts today's "
+                        + "timeline if there is none. Changes the user's timeline: call only when the user asks or agrees.")
+                    .inputSchema(schema(Map.of("task", TASK_PROP, "type", TYPE_PROP, "note", NOTE_PROP), "task"))
+                    .build(),
+                (exchange, request) -> run(() -> sliceService.startSlice(arg(request.arguments(), "task"),
+                    arg(request.arguments(), "type"), arg(request.arguments(), "note")))
+            )
+
+            // --- stop_slice ---
+            .toolCall(
+                Tool.builder()
+                    .name("stop_slice")
+                    .description("End the slice being recorded by going Off-line now. "
+                        + "Changes the user's timeline: call only when the user asks or agrees.")
+                    .inputSchema(EMPTY_SCHEMA)
+                    .build(),
+                (exchange, request) -> run(sliceService::stopSlice)
+            )
+
+            // --- insert_slice ---
+            .toolCall(
+                Tool.builder()
+                    .name("insert_slice")
+                    .description("Insert a slice the user forgot to record into an existing timeline. "
+                        + "The slice it lands in is cut short at the start. Without an end, the new slice "
+                        + "runs until the next slice; with one, the interrupted slice resumes at the end. "
+                        + "Changes the user's timeline: call only when the user asks or agrees.")
+                    .inputSchema(schema(Map.of(
+                        "start", Map.of("type", "string", "description", "Start time: " + TIME_FORMATS),
+                        "end", Map.of("type", "string", "description",
+                            "Optional end time, after which the interrupted slice resumes: " + TIME_FORMATS),
+                        "task", TASK_PROP, "type", TYPE_PROP, "note", NOTE_PROP), "start", "task"))
+                    .build(),
+                (exchange, request) -> run(() -> sliceService.insertSlice(arg(request.arguments(), "start"),
+                    arg(request.arguments(), "task"), arg(request.arguments(), "type"),
+                    arg(request.arguments(), "note"), arg(request.arguments(), "end")))
+            )
+
             .build();
 
         // Block until stdin is closed (MCP client disconnects)
         Thread.currentThread().join();
+    }
+
+    private static JsonSchema schema(Map<String, Object> properties, String... required)
+    {
+        return new JsonSchema("object", properties, List.of(required), false, null, null);
+    }
+
+    private static String arg(Map<String, Object> args, String name)
+    {
+        Object value = args == null ? null : args.get(name);
+        return value == null ? null : value.toString();
+    }
+
+    /** Runs a tool, reporting validation failures to the client as tool errors. */
+    private static CallToolResult run(Supplier<String> tool)
+    {
+        try
+        {
+            return CallToolResult.builder().content(List.of(new McpSchema.TextContent(tool.get()))).build();
+        }
+        catch (IllegalArgumentException | IllegalStateException e)
+        {
+            return CallToolResult.builder().content(List.of(new McpSchema.TextContent(e.getMessage())))
+                .isError(true).build();
+        }
     }
 
     private static Period parsePeriod(Map<String, Object> args)

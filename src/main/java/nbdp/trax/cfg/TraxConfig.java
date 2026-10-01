@@ -14,6 +14,8 @@ import org.mybatis.spring.SqlSessionFactoryBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Configuration
 public class TraxConfig
@@ -36,10 +38,17 @@ public class TraxConfig
     }
 
     @Bean
-    public TraxDao traxDao(SqlSessionFactory sqlSessionFactory)
+    public TransactionTemplate traxTransactionTemplate(PlatformTransactionManager transactionManager)
+    {
+        return new TransactionTemplate(transactionManager);
+    }
+
+    @Bean
+    public TraxDao traxDao(SqlSessionFactory sqlSessionFactory, TransactionTemplate traxTransactionTemplate)
     {
         TraxDao dao = new TraxDao();
         dao.setSqlSessionFactory(sqlSessionFactory);
+        dao.setTransactionTemplate(traxTransactionTemplate);
         return dao;
     }
 

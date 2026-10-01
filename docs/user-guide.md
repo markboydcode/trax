@@ -35,7 +35,7 @@ The main window shows the current timeline as a table of timeslices. Each row is
 Right-clicking on a **timeslice row** shows options including:
 
 - **Edit** -- edit the selected slice's time, type, task, and note
-- **Insert** -- insert a new slice at the selected row's position
+- **Insert** -- open the editor on a new slice that starts at the selected row's time; set its time, and it is placed in time order when you press OK (Cancel leaves the timeline untouched)
 - **Delete** -- delete the selected slice(s)
 - **Continue** -- add a new slice that copies the selected slice's type, task, and note
 
@@ -49,7 +49,7 @@ Right-clicking on **empty space** below the table shows general timeline options
 
 3. **End your day:** Press **Launch** one more time, set the type to **Off-line**, and press OK. Then press **Close** to close the timeline.
 
-4. **Catch up later:** If you were away and need to fill in time manually, use **Add** to append slices or right-click and **Insert** to place a slice at a specific position.
+4. **Catch up later:** If you were away and need to fill in time manually, use **Add** or right-click and **Insert** to add a slice at the time you give it.
 
 ## Opening a Timeline
 

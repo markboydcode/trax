@@ -177,6 +177,13 @@ insert into types (id, name) values (-1,	'Misc.');
     FROM tasks WHERE id=#{value}
   </select>
 
+  <select id="allTasks"
+    resultMap="taskObjects">
+    SELECT
+     id, parentId, typeId, completed, name, description
+    FROM tasks
+  </select>
+
   <!-- Get sutasks given parent ID -->
 
   <select id="subtasksByParentId"
@@ -211,6 +218,49 @@ insert into types (id, name) values (-1,	'Misc.');
     SELECT lineId, start, stop
     FROM timelines WHERE start = #{start}
   </select>
+
+  <!-- Row lock taken by every writer of a timeline's slices (UI save and
+       MCP server) so that their read-modify-write cycles serialize -->
+
+  <select id="lockTimeline"
+    parameterType="java.lang.Integer"
+    resultMap="lineObjects">
+    SELECT lineId, start, stop
+    FROM timelines WHERE lineId = #{value} FOR UPDATE
+  </select>
+
+  <select id="latestTimeline"
+    resultMap="lineObjects">
+    SELECT lineId, start, stop
+    FROM timelines ORDER BY start DESC LIMIT 1
+  </select>
+
+  <!-- the most recent timeline started at or before a point in time -->
+
+  <select id="timelineAt"
+    parameterType="java.sql.Timestamp"
+    resultMap="lineObjects">
+    <![CDATA[
+    SELECT lineId, start, stop
+    FROM timelines WHERE start <= #{value}
+    ORDER BY start DESC LIMIT 1
+    ]]>
+  </select>
+
+  <update id="updateTimeline"
+    parameterType="nbdp.trax.data.ibatis.DbTimeline">
+    UPDATE timelines SET start = #{start}, stop = #{stop}
+    WHERE lineId = #{id}
+  </update>
+
+  <!-- slices have no key column; a slice is identified by line and start -->
+
+  <update id="updateTimeslice"
+    parameterType="nbdp.trax.data.ibatis.DbTimeslice">
+    UPDATE timeslice
+    SET taskId = #{taskId}, type = #{typeId}, note = #{note}, duration = #{duration}
+    WHERE lineId = #{timelineId} AND start = #{start}
+  </update>
 
   <delete id="deleteTimeline"
   parameterType="nbdp.trax.data.ibatis.DbTimeline" >
@@ -324,10 +374,18 @@ insert into types (id, name) values (-1,	'Misc.');
     VALUES (#{timelineId}, #{start}, #{taskId}, #{typeId}, #{note}, #{duration})
   </insert>
 
+  <!-- locks the config row so concurrent processes allocate distinct ids;
+       also serves as the mutex for the MCP server's timeline writes -->
   <select id="nextLineId"
     resultType="java.lang.Integer">
     SELECT nextLineId
-    FROM config
+    FROM config FOR UPDATE
+  </select>
+
+  <select id="lockConfig"
+    resultType="java.lang.Integer">
+    SELECT nextLineId
+    FROM config FOR UPDATE
   </select>
 
   <update id="updateNextLineId" parameterType="int">
