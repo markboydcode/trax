@@ -31,6 +31,7 @@ public interface I_TraxDao
     public void updateTimeline(I_Timeline t);
     public void insertTimeslice(I_Timeslice s);
     public void updateTimeslice(I_Timeslice s);
+    public void moveTimeslice(int lineId, Timestamp from, Timestamp to);
 
     public I_Type[] getTypes();
     public I_Type getTypeById(int typeId);

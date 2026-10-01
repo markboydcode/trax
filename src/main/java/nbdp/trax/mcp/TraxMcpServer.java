@@ -68,7 +68,7 @@ public class TraxMcpServer
         during it, because Jira time is later split across the tickets a note names.
 
         - tag_current_slice is safe: call it without asking. It is idempotent.
-        - start_slice, stop_slice, insert_slice and tag_slice change the user's \
+        - start_slice, stop_slice, insert_slice, edit_slice and tag_slice change the user's \
         timeline. Call them only when the user asks, or after asking and getting a yes.
         - The first time this session starts work on a Jira ticket, ask the user \
         whether to tag the current slice with it or start a new slice, then follow \
@@ -268,6 +268,28 @@ public class TraxMcpServer
                 (exchange, request) -> run(() -> sliceService.insertSlice(arg(request.arguments(), "start"),
                     arg(request.arguments(), "task"), arg(request.arguments(), "type"),
                     arg(request.arguments(), "note"), arg(request.arguments(), "end")))
+            )
+
+            // --- edit_slice ---
+            .toolCall(
+                Tool.builder()
+                    .name("edit_slice")
+                    .description("Change the slice that was running at a given time: its task, type, note, "
+                        + "or start time. Only the fields passed change; an empty note clears it, and changing "
+                        + "the task keeps the type unless a type is passed too. A new start must stay between "
+                        + "the neighbouring slices' starts. Changes the user's timeline: call only when the "
+                        + "user asks or agrees.")
+                    .inputSchema(schema(Map.of(
+                        "time", Map.of("type", "string", "description", "A time within the slice: " + TIME_FORMATS),
+                        "task", TASK_PROP,
+                        "type", Map.of("type", "string", "description", "Activity type name from get_types"),
+                        "note", Map.of("type", "string", "description", "Replacement note; empty clears it"),
+                        "start", Map.of("type", "string", "description", "New start time: " + TIME_FORMATS)),
+                        "time"))
+                    .build(),
+                (exchange, request) -> run(() -> sliceService.editSlice(arg(request.arguments(), "time"),
+                    arg(request.arguments(), "task"), arg(request.arguments(), "type"),
+                    arg(request.arguments(), "note"), arg(request.arguments(), "start")))
             )
 
             .build();

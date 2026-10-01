@@ -4,6 +4,7 @@ import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import nbdp.trax.data.I_Task;
 import nbdp.trax.data.I_Timeline;
@@ -259,6 +260,12 @@ public class TraxDao extends SqlSessionDaoSupport implements I_TraxDao
     {
         SqlSession session = this.getSqlSession();
         session.update("trax.updateTimeslice", s);
+    }
+
+    public void moveTimeslice(int lineId, Timestamp from, Timestamp to)
+    {
+        SqlSession session = this.getSqlSession();
+        session.update("trax.moveTimeslice", Map.of("lineId", lineId, "from", from, "to", to));
     }
 
     /** Return the set of supported types.

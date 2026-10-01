@@ -262,6 +262,12 @@ insert into types (id, name) values (-1,	'Misc.');
     WHERE lineId = #{timelineId} AND start = #{start}
   </update>
 
+  <update id="moveTimeslice"
+    parameterType="java.util.Map">
+    UPDATE timeslice SET start = #{to}
+    WHERE lineId = #{lineId} AND start = #{from}
+  </update>
+
   <delete id="deleteTimeline"
   parameterType="nbdp.trax.data.ibatis.DbTimeline" >
     DELETE FROM timelines

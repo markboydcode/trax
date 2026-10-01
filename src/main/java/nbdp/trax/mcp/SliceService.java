@@ -222,6 +222,91 @@ public class SliceService
         });
     }
 
+    /**
+     * Changes the slice that was running at a given time. Only the arguments
+     * that are not null change; an empty note clears the note. Changing the
+     * task leaves the type alone unless a type is given too.
+     */
+    public String editSlice(String time, String task, String type, String note, String start)
+    {
+        LocalDateTime at = parseTime(time, null);
+        LocalDateTime newStart = start == null || start.isBlank() ? null : parseTime(start, at.toLocalDate());
+        I_Task t = task == null ? null : resolveTask(task);
+        I_Type ty = type == null || type.isBlank() ? null : resolveType(type, t);
+        if (task == null && ty == null && note == null && newStart == null)
+            throw new IllegalArgumentException("Nothing to change: pass a task, type, note or start.");
+
+        return write(() -> {
+            LocalDateTime now = now();
+            if (at.isAfter(now))
+                throw new IllegalArgumentException(describe(at) + " is in the future.");
+            I_Timeline line = lockTimelineAt(at);
+            List<I_Timeslice> slices = slicesOf(line);
+            int i = indexAt(slices, at);
+            if (i < 0)
+                throw new IllegalArgumentException("No slice was running at " + describe(at) + ".");
+            I_Timeslice s = slices.get(i);
+            I_Timeslice prev = i > 0 ? slices.get(i - 1) : null;
+            I_Timeslice next = i + 1 < slices.size() ? slices.get(i + 1) : null;
+            List<String> changes = new ArrayList<>();
+
+            if (task != null && (t == null ? I_Task.NO_TASK_ID : t.getId()) != s.getTaskId())
+            {
+                changes.add("task " + taskName(s.getTaskId()) + " -> " + (t == null ? I_Task.UNASSIGNED_TASK_LABEL : t.getName()));
+                s.setTaskId(t == null ? I_Task.NO_TASK_ID : t.getId());
+            }
+            if (ty != null && ty.getId() != s.getTypeId())
+            {
+                changes.add("type " + dao.getTypeById(s.getTypeId()).getName() + " -> " + ty.getName());
+                s.setTypeId(ty.getId());
+            }
+            if (note != null)
+            {
+                String n = note.isBlank() ? null : note.trim();
+                if (n != null && n.length() > TicketKeys.MAX_NOTE_LENGTH)
+                    throw new IllegalArgumentException("The note exceeds " + TicketKeys.MAX_NOTE_LENGTH + " characters.");
+                if (!java.util.Objects.equals(n, s.getNote()))
+                {
+                    changes.add("note '" + (n == null ? "" : n) + "'");
+                    s.setNote(n);
+                }
+            }
+            if (newStart != null && !newStart.equals(minute(s)))
+            {
+                if (newStart.isAfter(now))
+                    throw new IllegalArgumentException("The start " + describe(newStart) + " is in the future.");
+                if (prev != null && !newStart.isAfter(minute(prev)))
+                {
+                    throw new IllegalArgumentException("The start must be after the previous slice's start at "
+                        + describe(minute(prev)) + ".");
+                }
+                if (next != null && !newStart.isBefore(minute(next)))
+                {
+                    throw new IllegalArgumentException("The start must be before the next slice's start at "
+                        + describe(minute(next)) + ".");
+                }
+                if (prev == null && !newStart.toLocalDate().equals(at.toLocalDate()))
+                    throw new IllegalArgumentException("The start must stay on " + at.toLocalDate() + ".");
+                Timestamp to = Timestamp.valueOf(newStart);
+                changes.add("start " + describe(minute(s)) + " -> " + describe(newStart));
+                dao.moveTimeslice(line.getId(), s.getStart(), to);
+                s.setStart(to);
+                if (prev != null)
+                {
+                    prev.setDuration(to.getTime() - prev.getStart().getTime());
+                    dao.updateTimeslice(prev);
+                }
+                if (next != null)
+                    s.setDuration(next.getStart().getTime() - to.getTime());
+            }
+            if (changes.isEmpty())
+                return "Nothing changed: the slice at " + describe(minute(s)) + " already matches.";
+            dao.updateTimeslice(s);
+            updateStop(line, slices);
+            return "Edited the slice at " + describe(minute(s)) + ": " + String.join("; ", changes) + ".";
+        });
+    }
+
     // ---- writes ----
 
     /** Ends the running slice, if any, and appends a slice at the current time. */

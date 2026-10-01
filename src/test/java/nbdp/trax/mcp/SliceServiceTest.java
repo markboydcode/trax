@@ -215,6 +215,55 @@ class SliceServiceTest
         assertThat(slices(line)).extracting(I_Timeslice::getNote).containsExactly("home-8", "home-5134 home-9");
     }
 
+    @Test
+    void editChangesOnlyFieldsPassed()
+    {
+        I_Timeline line = timeline(NOW.minusHours(5),
+            slice("09:00", taz, MEETING, "home-5122 nullaway"), slice("12:00", bs, CODING, null));
+
+        String result = service.editSlice("10:15", "BS", null, null, null);
+
+        assertThat(result).contains("task TAZ -> BS");
+        I_Timeslice edited = slices(line).get(0);
+        assertThat(edited.getTaskId()).isEqualTo(bs.getId());
+        assertThat(edited.getTypeId()).isEqualTo(MEETING);
+        assertThat(edited.getNote()).isEqualTo("home-5122 nullaway");
+
+        service.editSlice("10:15", null, "Coding", "", null);
+        assertThat(slices(line).get(0).getTypeId()).isEqualTo(CODING);
+        assertThat(slices(line).get(0).getNote()).isNull();
+        assertThat(service.editSlice("10:15", "BS", null, null, null)).startsWith("Nothing changed");
+    }
+
+    @Test
+    void editMovesStartBetweenNeighbours()
+    {
+        I_Timeline line = timeline(NOW.minusHours(5),
+            slice("09:00", taz, CODING, null), slice("11:00", bs, CODING, null), slice("12:00", taz, CODING, null));
+
+        service.editSlice("11:30", null, null, null, "10:30");
+
+        assertThat(slices(line)).extracting(I_Timeslice::getDuration)
+            .containsExactly(90 * 60_000L, 90 * 60_000L, 0L);
+        assertThatThrownBy(() -> service.editSlice("11:00", null, null, null, "12:00"))
+            .hasMessageContaining("before the next slice's start at 12:00 PM");
+        assertThatThrownBy(() -> service.editSlice("11:00", null, null, null, "9:00"))
+            .hasMessageContaining("after the previous slice's start at 9:00 AM");
+        assertThatThrownBy(() -> service.editSlice("11:00", null, null, null, null))
+            .hasMessageContaining("Nothing to change");
+    }
+
+    @Test
+    void editMovesFirstSliceAndTimelineStart()
+    {
+        I_Timeline line = timeline(NOW.minusHours(5), slice("09:00", taz, CODING, null), slice("12:00", bs, CODING, null));
+
+        service.editSlice("9:00", null, null, null, "8:30");
+
+        assertThat(slices(line).get(0).getDuration()).isEqualTo(210 * 60_000L);
+        assertThat(dao.getLatestTimeline().getStart()).isEqualTo(Timestamp.valueOf(NOW.withHour(8).withMinute(30)));
+    }
+
     // ---- fixtures ----
 
     private I_Timeline timeline(LocalDateTime start, I_Timeslice... slices)
