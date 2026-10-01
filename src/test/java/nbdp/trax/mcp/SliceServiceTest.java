@@ -133,6 +133,24 @@ class SliceServiceTest
     }
 
     @Test
+    void continueCopiesEarlierSlice()
+    {
+        I_Timeline line = timeline(NOW.minusHours(3),
+            slice("11:00", taz, MEETING, "home-5122 nullaway"), slice("12:00", bs, CODING, null),
+            slice("13:00", null, I_Type.OFFLINE_TYPE_ID, null));
+
+        assertThat(service.continueSlice("11:30")).contains("Started 'TAZ' (Meeting) at 2:00 PM")
+            .contains("Continued from the slice at 11:00 AM");
+
+        I_Timeslice resumed = slices(line).get(3);
+        assertThat(resumed.getTaskId()).isEqualTo(taz.getId());
+        assertThat(resumed.getTypeId()).isEqualTo(MEETING);
+        assertThat(resumed.getNote()).isEqualTo("home-5122 nullaway");
+        assertThat(slices(line).get(2).getDuration()).isEqualTo(3_600_000L);
+        assertThatThrownBy(() -> service.continueSlice("13:30")).hasMessageContaining("Off-line");
+    }
+
+    @Test
     void stopGoesOffline()
     {
         I_Timeline line = timeline(NOW.minusHours(1), slice("13:00", taz, CODING, null));

@@ -68,7 +68,7 @@ public class TraxMcpServer
         during it, because Jira time is later split across the tickets a note names.
 
         - tag_current_slice is safe: call it without asking. It is idempotent.
-        - start_slice, stop_slice, insert_slice, edit_slice and tag_slice change the user's \
+        - start_slice, continue_slice, stop_slice, insert_slice, edit_slice and tag_slice change the user's \
         timeline. Call them only when the user asks, or after asking and getting a yes.
         - The first time this session starts work on a Jira ticket, ask the user \
         whether to tag the current slice with it or start a new slice, then follow \
@@ -238,6 +238,21 @@ public class TraxMcpServer
                     .build(),
                 (exchange, request) -> run(() -> sliceService.startSlice(arg(request.arguments(), "task"),
                     arg(request.arguments(), "type"), arg(request.arguments(), "note")))
+            )
+
+            // --- continue_slice ---
+            .toolCall(
+                Tool.builder()
+                    .name("continue_slice")
+                    .description("Continue an earlier slice, like trax's Continue: end the slice being "
+                        + "recorded and start a new one now with the task, type and note of the slice that "
+                        + "was running at the given time. Changes the user's timeline: call only when the "
+                        + "user asks or agrees.")
+                    .inputSchema(schema(Map.of(
+                        "time", Map.of("type", "string", "description",
+                            "A time within the slice to continue: " + TIME_FORMATS)), "time"))
+                    .build(),
+                (exchange, request) -> run(() -> sliceService.continueSlice(arg(request.arguments(), "time")))
             )
 
             // --- stop_slice ---

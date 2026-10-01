@@ -131,6 +131,30 @@ public class SliceService
         return write(() -> append(t, ty, note));
     }
 
+    /**
+     * Ends the running slice now and starts one with the task, type and note
+     * of the slice that was running at a given time, like the UI's Continue.
+     */
+    public String continueSlice(String time)
+    {
+        LocalDateTime at = parseTime(time, null);
+        return write(() -> {
+            if (at.isAfter(now()))
+                throw new IllegalArgumentException(describe(at) + " is in the future.");
+            I_Timeline line = lockTimelineAt(at);
+            List<I_Timeslice> slices = slicesOf(line);
+            int i = indexAt(slices, at);
+            if (i < 0)
+                throw new IllegalArgumentException("No slice was running at " + describe(at) + ".");
+            I_Timeslice source = slices.get(i);
+            if (source.getTypeId() == I_Type.OFFLINE_TYPE_ID)
+                throw new IllegalArgumentException("The slice at " + describe(at) + " is Off-line; use stop_slice.");
+            I_Task task = source.getTaskId() == I_Task.NO_TASK_ID ? null : dao.getTask(source.getTaskId());
+            return append(task, dao.getTypeById(source.getTypeId()), source.getNote())
+                + " Continued from the slice at " + describe(minute(source)) + ".";
+        });
+    }
+
     /** Ends the running slice now by starting an Off-line slice. */
     public String stopSlice()
     {

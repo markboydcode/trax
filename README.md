@@ -82,6 +82,7 @@ Write tools let several Claude Code sessions keep the current timeline's notes n
 | `tag_current_slice(ticket)` | Adds a ticket key to the running slice's note unless it is already there |
 | `tag_slice(time, ticket)` | Same, for the slice running at a past time |
 | `start_slice(task, type, note)` | Ends the running slice and starts a new one now |
+| `continue_slice(time)` | Like trax's Continue: starts a new slice now copying the task, type and note of the slice running at `time` |
 | `stop_slice()` | Ends the running slice by going Off-line |
 | `insert_slice(start, task, type, note, end)` | Inserts a forgotten slice; with `end`, the interrupted slice resumes afterward |
 | `edit_slice(time, task, type, note, start)` | Changes the slice running at `time`; only the fields passed change |
