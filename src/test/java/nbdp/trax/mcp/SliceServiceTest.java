@@ -371,6 +371,32 @@ class SliceServiceTest
         assertThat(slices(line).get(0).getDuration()).isEqualTo(60 * 60_000L - 5_000L);
     }
 
+    @Test
+    void taskNamesThatAreNumbersResolveByName()
+    {
+        timeline(NOW.minusHours(1), slice("13:00", taz, CODING, null));
+        I_Task oneOnOne = dao.createTask(I_Task.ROOT_TASK_PARENT_ID, MEETING, "101", null);
+
+        service.startSlice("101", null, null);
+        assertThat(service.getCurrentSlice()).contains("Task:    101");
+
+        service.editSlice("14:00", null, String.valueOf(bs.getId()), null, null, null); // no task has that name: an id
+        assertThat(service.getCurrentSlice()).contains("Task:    BS");
+        assertThat(oneOnOne.getId()).isNotEqualTo(101);
+    }
+
+    @Test
+    void slicesInPeriodComeBackInTimeOrder()
+    {
+        I_Timeline line = timeline(NOW.minusHours(5), slice("10:00", taz, CODING, null), slice("12:00", bs, CODING, null));
+        service.insertSlice("9:00", "BS", null, null, null);
+
+        List<?> slices = dao.getSlicesInPeriod(new nbdp.trax.data.Period(
+            Timestamp.valueOf(NOW.withHour(0)), Timestamp.valueOf(NOW.withHour(23))));
+        assertThat(slices).extracting(o -> ((I_Timeslice) o).getStart().toLocalDateTime().getHour())
+            .containsExactly(9, 10, 12);
+    }
+
     // ---- fixtures ----
 
     private I_Timeline timeline(LocalDateTime start, I_Timeslice... slices)

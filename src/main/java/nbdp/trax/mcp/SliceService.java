@@ -606,19 +606,20 @@ public class SliceService
         String s = spec == null ? "" : spec.trim();
         if (s.isEmpty() || s.equalsIgnoreCase(I_Task.UNASSIGNED_TASK_LABEL))
             return null;
-        if (s.matches("\\d+"))
-        {
-            I_Task t = dao.getTask(Integer.parseInt(s));
-            if (t == null)
-                throw new IllegalArgumentException("No task has id " + s + ". Use get_tasks to list tasks.");
-            return t;
-        }
         List<I_Task> named = new ArrayList<>();
         for (Object o : dao.getAllTasks())
         {
             I_Task t = (I_Task) o;
             if (t.getName().trim().equalsIgnoreCase(s))
                 named.add(t);
+        }
+        // a name wins over an id, since some task names are numbers (e.g. "101")
+        if (named.isEmpty() && s.matches("\\d+"))
+        {
+            I_Task t = dao.getTask(Integer.parseInt(s));
+            if (t == null)
+                throw new IllegalArgumentException("No task has id " + s + ". Use get_tasks to list tasks.");
+            return t;
         }
         if (named.isEmpty())
             throw new IllegalArgumentException("No task is named '" + s + "'. Use get_tasks to list tasks.");

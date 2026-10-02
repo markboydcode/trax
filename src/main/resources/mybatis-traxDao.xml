@@ -209,6 +209,7 @@ insert into types (id, name) values (-1,	'Misc.');
      OR 
      (#{start} < dateadd('MILLISECOND', duration, start)
       AND dateadd('MILLISECOND', duration, start) < #{stop})
+    ORDER BY start ASC
     ]]>
   </select>
 
