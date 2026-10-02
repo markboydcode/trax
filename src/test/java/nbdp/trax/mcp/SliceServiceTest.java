@@ -139,7 +139,7 @@ class SliceServiceTest
             slice("11:00", taz, MEETING, "home-5122 nullaway"), slice("12:00", bs, CODING, null),
             slice("13:00", null, I_Type.OFFLINE_TYPE_ID, null));
 
-        assertThat(service.continueSlice("11:30")).contains("Started 'TAZ' (Meeting) at 2:00 PM")
+        assertThat(service.continueSlice("11:30", null)).contains("Started 'TAZ' (Meeting) at 2:00 PM")
             .contains("Continued from the slice at 11:00 AM");
 
         I_Timeslice resumed = slices(line).get(3);
@@ -147,7 +147,7 @@ class SliceServiceTest
         assertThat(resumed.getTypeId()).isEqualTo(MEETING);
         assertThat(resumed.getNote()).isEqualTo("home-5122 nullaway");
         assertThat(slices(line).get(2).getDuration()).isEqualTo(3_600_000L);
-        assertThatThrownBy(() -> service.continueSlice("13:30")).hasMessageContaining("Off-line");
+        assertThatThrownBy(() -> service.continueSlice("13:30", null)).hasMessageContaining("Off-line");
     }
 
     @Test
@@ -227,8 +227,8 @@ class SliceServiceTest
         I_Timeline line = timeline(NOW.minusHours(5),
             slice("09:00", taz, CODING, null), slice("12:00:45", bs, CODING, "home-5134"));
 
-        service.tagSlice("12:00", "home-9");
-        service.tagSlice("11:59", "home-8");
+        service.tagSlice("12:00", null, "home-9");
+        service.tagSlice("11:59", null, "home-8");
 
         assertThat(slices(line)).extracting(I_Timeslice::getNote).containsExactly("home-8", "home-5134 home-9");
     }
@@ -239,7 +239,7 @@ class SliceServiceTest
         I_Timeline line = timeline(NOW.minusHours(5),
             slice("09:00", taz, MEETING, "home-5122 nullaway"), slice("12:00", bs, CODING, null));
 
-        String result = service.editSlice("10:15", "BS", null, null, null);
+        String result = service.editSlice("10:15", null, "BS", null, null, null);
 
         assertThat(result).contains("task TAZ -> BS");
         I_Timeslice edited = slices(line).get(0);
@@ -247,10 +247,10 @@ class SliceServiceTest
         assertThat(edited.getTypeId()).isEqualTo(MEETING);
         assertThat(edited.getNote()).isEqualTo("home-5122 nullaway");
 
-        service.editSlice("10:15", null, "Coding", "", null);
+        service.editSlice("10:15", null, null, "Coding", "", null);
         assertThat(slices(line).get(0).getTypeId()).isEqualTo(CODING);
         assertThat(slices(line).get(0).getNote()).isNull();
-        assertThat(service.editSlice("10:15", "BS", null, null, null)).startsWith("Nothing changed");
+        assertThat(service.editSlice("10:15", null, "BS", null, null, null)).startsWith("Nothing changed");
     }
 
     @Test
@@ -259,15 +259,15 @@ class SliceServiceTest
         I_Timeline line = timeline(NOW.minusHours(5),
             slice("09:00", taz, CODING, null), slice("11:00", bs, CODING, null), slice("12:00", taz, CODING, null));
 
-        service.editSlice("11:30", null, null, null, "10:30");
+        service.editSlice("11:30", null, null, null, null, "10:30");
 
         assertThat(slices(line)).extracting(I_Timeslice::getDuration)
             .containsExactly(90 * 60_000L, 90 * 60_000L, 0L);
-        assertThatThrownBy(() -> service.editSlice("11:00", null, null, null, "12:00"))
+        assertThatThrownBy(() -> service.editSlice("11:00", null, null, null, null, "12:00"))
             .hasMessageContaining("before the next slice's start at 12:00 PM");
-        assertThatThrownBy(() -> service.editSlice("11:00", null, null, null, "9:00"))
+        assertThatThrownBy(() -> service.editSlice("11:00", null, null, null, null, "9:00"))
             .hasMessageContaining("after the previous slice's start at 9:00 AM");
-        assertThatThrownBy(() -> service.editSlice("11:00", null, null, null, null))
+        assertThatThrownBy(() -> service.editSlice("11:00", null, null, null, null, null))
             .hasMessageContaining("Nothing to change");
     }
 
@@ -276,10 +276,46 @@ class SliceServiceTest
     {
         I_Timeline line = timeline(NOW.minusHours(5), slice("09:00", taz, CODING, null), slice("12:00", bs, CODING, null));
 
-        service.editSlice("9:00", null, null, null, "8:30");
+        service.editSlice("9:00", null, null, null, null, "8:30");
 
         assertThat(slices(line).get(0).getDuration()).isEqualTo(210 * 60_000L);
         assertThat(dao.getLatestTimeline().getStart()).isEqualTo(Timestamp.valueOf(NOW.withHour(8).withMinute(30)));
+    }
+
+    @Test
+    void namesSliceByTheMinuteItsTimelineBegan()
+    {
+        I_Timeline line = timeline(LocalDateTime.of(NOW.toLocalDate(), java.time.LocalTime.of(13, 50, 23)),
+            slice("13:50:23", taz, MEETING, null));
+
+        service.editSlice("1:50 PM", null, null, null, null, "1:30 PM");
+
+        assertThat(slices(line).get(0).getStart()).isEqualTo(Timestamp.valueOf(NOW.withHour(13).withMinute(30)));
+    }
+
+    @Test
+    void sharedMinuteNeedsAnIndex()
+    {
+        I_Timeline line = timeline(NOW.minusHours(5), slice("09:00", taz, CODING, null),
+            slice("10:00:05", taz, CODING, "trax"), slice("10:00:45", bs, CODING, "urgent"),
+            slice("11:00", taz, CODING, null));
+
+        assertThatThrownBy(() -> service.tagSlice("10:00", null, "home-1"))
+            .hasMessageContaining("2 slices start at 10:00 AM, oldest first:")
+            .hasMessageContaining("1. 'TAZ' (Coding) 'trax'")
+            .hasMessageContaining("2. 'BS' (Coding) 'urgent'");
+        assertThatThrownBy(() -> service.editSlice("10:00", 3, null, null, "x", null))
+            .hasMessageContaining("out of range");
+        assertThatThrownBy(() -> service.editSlice("9:30", 1, null, null, "x", null))
+            .hasMessageContaining("No slice starts at 9:30 AM");
+
+        assertThat(service.editSlice("10:00", 1, null, null, null, "9:58")).contains("TAZ slice at 9:58 AM");
+        service.tagSlice("10:00", null, "home-2"); // unambiguous now
+        service.tagSlice("10:30", null, "home-3"); // no slice starts then: the running one
+
+        assertThat(slices(line)).extracting(I_Timeslice::getNote)
+            .containsExactly(null, "trax", "home-2 home-3 urgent", null);
+        assertThat(slices(line).get(1).getDuration()).isEqualTo(2 * 60_000L + 45_000L);
     }
 
     // ---- fixtures ----

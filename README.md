@@ -80,12 +80,14 @@ Write tools let several Claude Code sessions keep the current timeline's notes n
 | Tool | Effect |
 |------|--------|
 | `tag_current_slice(ticket)` | Adds a ticket key to the running slice's note unless it is already there |
-| `tag_slice(time, ticket)` | Same, for the slice running at a past time |
+| `tag_slice(time, index, ticket)` | Same, for the slice running at a past time |
 | `start_slice(task, type, note)` | Ends the running slice and starts a new one now |
-| `continue_slice(time)` | Like trax's Continue: starts a new slice now copying the task, type and note of the slice running at `time` |
+| `continue_slice(time, index)` | Like trax's Continue: starts a new slice now copying the task, type and note of the slice running at `time` |
 | `stop_slice()` | Ends the running slice by going Off-line |
 | `insert_slice(start, task, type, note, end)` | Inserts a forgotten slice; with `end`, the interrupted slice resumes afterward |
-| `edit_slice(time, task, type, note, start)` | Changes the slice running at `time`; only the fields passed change |
+| `edit_slice(time, index, task, type, note, start)` | Changes the slice running at `time`; only the fields passed change |
+
+Times are named to the minute, as the UI shows them. When several slices start in the named minute, the tools that pick a slice refuse and list the candidates oldest first; pass `index` (1 for the oldest) to pick one.
 
 The server's instructions tell sessions that only tagging the current slice may happen without asking; the other write tools change the timeline and need the user's say-so. Each write is one transaction that locks the timeline, so concurrent sessions and the Swing UI never overwrite one another, and the UI picks up outside changes within 10 seconds.
 

@@ -101,8 +101,11 @@ public class SliceService
         });
     }
 
-    /** Adds a ticket key to the note of the slice that was running at a given time. */
-    public String tagSlice(String time, String ticket)
+    /**
+     * Adds a ticket key to the note of the slice that was running at a given
+     * time. {@code index} picks among several slices starting in that minute.
+     */
+    public String tagSlice(String time, Integer index, String ticket)
     {
         String key = TicketKeys.normalize(ticket);
         LocalDateTime at = parseTime(time, null);
@@ -111,9 +114,7 @@ public class SliceService
                 throw new IllegalArgumentException(describe(at) + " is in the future.");
             I_Timeline line = lockTimelineAt(at);
             List<I_Timeslice> slices = slicesOf(line);
-            int i = indexAt(slices, at);
-            if (i < 0)
-                throw new IllegalArgumentException("No slice was running at " + describe(at) + ".");
+            int i = selectSlice(slices, at, index);
             I_Timeslice s = slices.get(i);
             if (s.getTypeId() == I_Type.OFFLINE_TYPE_ID)
                 throw new IllegalArgumentException("The slice at " + describe(at) + " is Off-line.");
@@ -135,7 +136,7 @@ public class SliceService
      * Ends the running slice now and starts one with the task, type and note
      * of the slice that was running at a given time, like the UI's Continue.
      */
-    public String continueSlice(String time)
+    public String continueSlice(String time, Integer index)
     {
         LocalDateTime at = parseTime(time, null);
         return write(() -> {
@@ -143,9 +144,7 @@ public class SliceService
                 throw new IllegalArgumentException(describe(at) + " is in the future.");
             I_Timeline line = lockTimelineAt(at);
             List<I_Timeslice> slices = slicesOf(line);
-            int i = indexAt(slices, at);
-            if (i < 0)
-                throw new IllegalArgumentException("No slice was running at " + describe(at) + ".");
+            int i = selectSlice(slices, at, index);
             I_Timeslice source = slices.get(i);
             if (source.getTypeId() == I_Type.OFFLINE_TYPE_ID)
                 throw new IllegalArgumentException("The slice at " + describe(at) + " is Off-line; use stop_slice.");
@@ -251,7 +250,7 @@ public class SliceService
      * that are not null change; an empty note clears the note. Changing the
      * task leaves the type alone unless a type is given too.
      */
-    public String editSlice(String time, String task, String type, String note, String start)
+    public String editSlice(String time, Integer index, String task, String type, String note, String start)
     {
         LocalDateTime at = parseTime(time, null);
         LocalDateTime newStart = start == null || start.isBlank() ? null : parseTime(start, at.toLocalDate());
@@ -266,9 +265,7 @@ public class SliceService
                 throw new IllegalArgumentException(describe(at) + " is in the future.");
             I_Timeline line = lockTimelineAt(at);
             List<I_Timeslice> slices = slicesOf(line);
-            int i = indexAt(slices, at);
-            if (i < 0)
-                throw new IllegalArgumentException("No slice was running at " + describe(at) + ".");
+            int i = selectSlice(slices, at, index);
             I_Timeslice s = slices.get(i);
             I_Timeslice prev = i > 0 ? slices.get(i - 1) : null;
             I_Timeslice next = i + 1 < slices.size() ? slices.get(i + 1) : null;
@@ -327,7 +324,7 @@ public class SliceService
                 return "Nothing changed: the slice at " + describe(minute(s)) + " already matches.";
             dao.updateTimeslice(s);
             updateStop(line, slices);
-            return "Edited the slice at " + describe(minute(s)) + ": " + String.join("; ", changes) + ".";
+            return "Edited the " + taskName(s.getTaskId()) + " slice at " + describe(minute(s)) + ": " + String.join("; ", changes) + ".";
         });
     }
 
@@ -419,7 +416,8 @@ public class SliceService
 
     private I_Timeline lockTimelineAt(LocalDateTime at)
     {
-        I_Timeline line = dao.getTimelineAt(Timestamp.valueOf(at));
+        // times are named to the minute, so include a timeline begun later in that minute
+        I_Timeline line = dao.getTimelineAt(Timestamp.valueOf(at.plusMinutes(1).minusNanos(1)));
         if (line == null || !line.getStart().toLocalDateTime().toLocalDate().equals(at.toLocalDate()))
         {
             I_Timeline later = dao.getTimelineAt(Timestamp.valueOf(at.toLocalDate().plusDays(1).atStartOfDay()));
@@ -463,6 +461,56 @@ public class SliceService
         if (last.getTypeId() == I_Type.OFFLINE_TYPE_ID)
             return "No slice is running: Off-line since " + TIME.format(last.getStart().toLocalDateTime()) + ".";
         return null;
+    }
+
+    /**
+     * Returns the index of the slice a user names by a minute. When several
+     * slices start in that minute, {@code index} (1 for the oldest) must pick
+     * one; a minute in which no slice starts names the slice running then.
+     */
+    private int selectSlice(List<I_Timeslice> slices, LocalDateTime at, Integer index)
+    {
+        List<Integer> starting = new ArrayList<>();
+        for (int i = 0; i < slices.size(); i++)
+        {
+            if (minute(slices.get(i)).equals(at))
+                starting.add(i);
+        }
+        if (index != null)
+        {
+            if (starting.isEmpty())
+            {
+                throw new IllegalArgumentException("No slice starts at " + describe(at)
+                    + "; index only picks among slices starting in the named minute.");
+            }
+            if (index < 1 || index > starting.size())
+            {
+                throw new IllegalArgumentException("Index " + index + " is out of range. "
+                    + candidates(slices, starting, at));
+            }
+            return starting.get(index - 1);
+        }
+        if (starting.size() > 1)
+            throw new IllegalArgumentException(candidates(slices, starting, at) + " Pass index to pick one.");
+
+        int i = indexAt(slices, at);
+        if (i < 0)
+            throw new IllegalArgumentException("No slice was running at " + describe(at) + ".");
+        return i;
+    }
+
+    private String candidates(List<I_Timeslice> slices, List<Integer> starting, LocalDateTime at)
+    {
+        StringBuilder sb = new StringBuilder(starting.size() + " slices start at " + describe(at)
+            + ", oldest first:");
+        for (int n = 0; n < starting.size(); n++)
+        {
+            I_Timeslice s = slices.get(starting.get(n));
+            sb.append("\n  ").append(n + 1).append(". ").append(summary(s));
+            if (s.getNote() != null)
+                sb.append(" '").append(s.getNote()).append("'");
+        }
+        return sb.toString();
     }
 
     /**

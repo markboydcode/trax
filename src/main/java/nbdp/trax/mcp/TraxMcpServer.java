@@ -87,6 +87,10 @@ public class TraxMcpServer
         "Activity type name from get_types; defaults to the task's type");
     private static final Map<String, Object> NOTE_PROP = Map.of(
         "type", "string", "description", "Note; start it with the ticket keys worked, e.g. 'home-5156 jspecify'");
+    private static final Map<String, Object> INDEX_PROP = Map.of(
+        "type", "integer", "description",
+        "Only when several slices start in the named minute: which one, 1 for the oldest. "
+            + "Without it such a minute is refused with the candidates listed in order.");
     private static final String TIME_FORMATS =
         "13:00, 1:00 PM, or with a date: 2026-10-01 13:00 (no date means today)";
 
@@ -222,10 +226,10 @@ public class TraxMcpServer
                         + "Changes the user's timeline: call only when the user asks or agrees.")
                     .inputSchema(schema(Map.of(
                         "time", Map.of("type", "string", "description", "A time within the slice: " + TIME_FORMATS),
-                        "ticket", TICKET_PROP), "time", "ticket"))
+                        "index", INDEX_PROP, "ticket", TICKET_PROP), "time", "ticket"))
                     .build(),
-                (exchange, request) -> run(() -> sliceService.tagSlice(
-                    arg(request.arguments(), "time"), arg(request.arguments(), "ticket")))
+                (exchange, request) -> run(() -> sliceService.tagSlice(arg(request.arguments(), "time"),
+                    intArg(request.arguments(), "index"), arg(request.arguments(), "ticket")))
             )
 
             // --- start_slice ---
@@ -250,9 +254,11 @@ public class TraxMcpServer
                         + "user asks or agrees.")
                     .inputSchema(schema(Map.of(
                         "time", Map.of("type", "string", "description",
-                            "A time within the slice to continue: " + TIME_FORMATS)), "time"))
+                            "A time within the slice to continue: " + TIME_FORMATS),
+                        "index", INDEX_PROP), "time"))
                     .build(),
-                (exchange, request) -> run(() -> sliceService.continueSlice(arg(request.arguments(), "time")))
+                (exchange, request) -> run(() -> sliceService.continueSlice(arg(request.arguments(), "time"),
+                    intArg(request.arguments(), "index")))
             )
 
             // --- stop_slice ---
@@ -296,6 +302,7 @@ public class TraxMcpServer
                         + "user asks or agrees.")
                     .inputSchema(schema(Map.of(
                         "time", Map.of("type", "string", "description", "A time within the slice: " + TIME_FORMATS),
+                        "index", INDEX_PROP,
                         "task", TASK_PROP,
                         "type", Map.of("type", "string", "description", "Activity type name from get_types"),
                         "note", Map.of("type", "string", "description", "Replacement note; empty clears it"),
@@ -303,7 +310,7 @@ public class TraxMcpServer
                         "time"))
                     .build(),
                 (exchange, request) -> run(() -> sliceService.editSlice(arg(request.arguments(), "time"),
-                    arg(request.arguments(), "task"), arg(request.arguments(), "type"),
+                    intArg(request.arguments(), "index"), arg(request.arguments(), "task"), arg(request.arguments(), "type"),
                     arg(request.arguments(), "note"), arg(request.arguments(), "start")))
             )
 
@@ -322,6 +329,23 @@ public class TraxMcpServer
     {
         Object value = args == null ? null : args.get(name);
         return value == null ? null : value.toString();
+    }
+
+    private static Integer intArg(Map<String, Object> args, String name)
+    {
+        Object value = args == null ? null : args.get(name);
+        if (value == null)
+            return null;
+        if (value instanceof Number n)
+            return n.intValue();
+        try
+        {
+            return (int) Double.parseDouble(value.toString().trim());
+        }
+        catch (NumberFormatException e)
+        {
+            throw new IllegalArgumentException(name + " must be a whole number.");
+        }
     }
 
     /** Runs a tool, reporting validation failures to the client as tool errors. */
