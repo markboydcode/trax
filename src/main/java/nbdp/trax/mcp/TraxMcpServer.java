@@ -64,8 +64,11 @@ public class TraxMcpServer
 
     private static final String INSTRUCTIONS = """
         Trax holds the user's single time-tracking timeline, shared by all of their \
-        Claude Code sessions. Each slice's note must name every Jira ticket worked \
-        during it, because Jira time is later split across the tickets a note names.
+        Claude Code sessions. When Jira tickets are worked during a slice, its note must \
+        start with all of their keys, because Jira time is later split evenly across \
+        those leading keys. A slice with no ticket, such as a meeting, needs no key and \
+        logs no Jira time. A key later in the note is only a reference and gets no time, \
+        e.g. "home-5041 re-measure 410s; filed HOME-5160" splits nothing to HOME-5160.
 
         - tag_current_slice is safe: call it without asking. It is idempotent.
         - start_slice, continue_slice, stop_slice, insert_slice, edit_slice, delete_slice and tag_slice change the user's \
@@ -86,7 +89,7 @@ public class TraxMcpServer
         "type", "string", "description",
         "Activity type name from get_types; defaults to the task's type");
     private static final Map<String, Object> NOTE_PROP = Map.of(
-        "type", "string", "description", "Note; start it with the ticket keys worked, e.g. 'home-5156 jspecify'");
+        "type", "string", "description", "Optional note. If Jira tickets are worked, start it with their keys, e.g. 'home-5156 jspecify'; only leading keys get time");
     private static final Map<String, Object> INDEX_PROP = Map.of(
         "type", "integer", "description",
         "Only when several slices start in the named minute: which one, 1 for the oldest. "
@@ -211,8 +214,8 @@ public class TraxMcpServer
             .toolCall(
                 Tool.builder()
                     .name("tag_current_slice")
-                    .description("Add a Jira ticket key to the note of the slice being recorded now, "
-                        + "unless the note already names it. Safe to call without asking the user; idempotent.")
+                    .description("Add a Jira ticket key to the leading keys of the note of the slice being "
+                        + "recorded now, unless they already include it. Safe to call without asking the user; idempotent.")
                     .inputSchema(schema(Map.of("ticket", TICKET_PROP), "ticket"))
                     .build(),
                 (exchange, request) -> run(() -> sliceService.tagCurrentSlice(arg(request.arguments(), "ticket")))

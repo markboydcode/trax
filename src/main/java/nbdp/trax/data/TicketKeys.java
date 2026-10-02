@@ -8,6 +8,8 @@ import java.util.regex.Pattern;
 
 /**
  * Finds and adds Jira ticket keys (e.g. "home-5156") in timeslice notes.
+ * Only the keys that lead a note tag the slice, and its time is split across
+ * them; a key later in the note is a reference, as in "filed HOME-5160".
  * Keys are compared case-insensitively and written in lower case.
  *
  * @author Mark Boyd
@@ -42,13 +44,15 @@ public final class TicketKeys
         return t.toLowerCase(Locale.ROOT);
     }
 
-    /** Returns the lower-cased ticket keys in a note, in order of appearance. */
+    /** Returns the lower-cased ticket keys that lead a note, in order. */
     public static Set<String> find(String note)
     {
         Set<String> keys = new LinkedHashSet<>();
         if (note != null)
         {
-            Matcher m = KEY_PATTERN.matcher(note);
+            Matcher lead = LEADING_KEYS.matcher(note);
+            lead.lookingAt();
+            Matcher m = KEY_PATTERN.matcher(note.substring(0, lead.end()));
             while (m.find())
                 keys.add(m.group().toLowerCase(Locale.ROOT));
         }
@@ -63,7 +67,7 @@ public final class TicketKeys
     /**
      * Returns the note with the key added after any keys that lead the note,
      * so "home-5149 fleet deploy" becomes "home-5149 home-5156 fleet deploy".
-     * Returns the note unchanged if it already names the key.
+     * Returns the note unchanged if its leading keys already include the key.
      *
      * @throws IllegalStateException if the result would not fit the note column
      */

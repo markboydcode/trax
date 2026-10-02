@@ -39,6 +39,18 @@ class TicketKeysTest
     }
 
     @Test
+    void onlyLeadingKeysTagASlice()
+    {
+        String note = "home-5041 re-measure 410s; filed HOME-5160";
+
+        assertThat(TicketKeys.find(note)).containsExactly("home-5041");
+        assertThat(TicketKeys.contains(note, "home-5160")).isFalse();
+        assertThat(TicketKeys.add(note, "home-5160"))
+            .isEqualTo("home-5041 home-5160 re-measure 410s; filed HOME-5160");
+        assertThat(TicketKeys.find("calvin w/home-5156")).isEmpty();
+    }
+
+    @Test
     void rejectsNonKeys()
     {
         assertThatThrownBy(() -> TicketKeys.normalize("5156")).isInstanceOf(IllegalArgumentException.class);

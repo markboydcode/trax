@@ -88,6 +88,8 @@ Write tools let several Claude Code sessions keep the current timeline's notes n
 | `delete_slice(time, index)` | Deletes a slice; the slice before it covers the gap |
 | `edit_slice(time, index, task, type, note, start)` | Changes the slice running at `time`; only the fields passed change |
 
+Keys are optional: a slice with no ticket, such as a meeting, gets no Jira time. When a note has keys, only those at its start tag the slice, and Jira time is split across them; a key later in the note, as in "filed HOME-5160", is a reference and gets no time.
+
 Times are named to the minute, as the UI shows them. When several slices start in the named minute, the tools that pick a slice refuse and list the candidates oldest first; pass `index` (1 for the oldest) to pick one.
 
 The server's instructions tell sessions that only tagging the current slice may happen without asking; the other write tools change the timeline and need the user's say-so. Each write is one transaction that locks the timeline, so concurrent sessions and the Swing UI never overwrite one another, and the UI picks up outside changes within 10 seconds.
