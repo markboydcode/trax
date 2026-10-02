@@ -84,7 +84,8 @@ Write tools let several Claude Code sessions keep the current timeline's notes n
 | `start_slice(task, type, note)` | Ends the running slice and starts a new one now |
 | `continue_slice(time, index)` | Like trax's Continue: starts a new slice now copying the task, type and note of the slice running at `time` |
 | `stop_slice()` | Ends the running slice by going Off-line |
-| `insert_slice(start, task, type, note, end)` | Inserts a forgotten slice; with `end`, the interrupted slice resumes afterward |
+| `insert_slice(start, task, type, note, end)` | Inserts a forgotten slice on any past day; with `end`, the interrupted slice resumes afterward, or the day goes Off-line. On a day with no timeline, creates one (`end` required), e.g. for a vacation day |
+| `delete_slice(time, index)` | Deletes a slice; the slice before it covers the gap |
 | `edit_slice(time, index, task, type, note, start)` | Changes the slice running at `time`; only the fields passed change |
 
 Times are named to the minute, as the UI shows them. When several slices start in the named minute, the tools that pick a slice refuse and list the candidates oldest first; pass `index` (1 for the oldest) to pick one.

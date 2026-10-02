@@ -68,7 +68,7 @@ public class TraxMcpServer
         during it, because Jira time is later split across the tickets a note names.
 
         - tag_current_slice is safe: call it without asking. It is idempotent.
-        - start_slice, continue_slice, stop_slice, insert_slice, edit_slice and tag_slice change the user's \
+        - start_slice, continue_slice, stop_slice, insert_slice, edit_slice, delete_slice and tag_slice change the user's \
         timeline. Call them only when the user asks, or after asking and getting a yes.
         - The first time this session starts work on a Jira ticket, ask the user \
         whether to tag the current slice with it or start a new slice, then follow \
@@ -276,9 +276,12 @@ public class TraxMcpServer
             .toolCall(
                 Tool.builder()
                     .name("insert_slice")
-                    .description("Insert a slice the user forgot to record into an existing timeline. "
+                    .description("Insert a slice the user forgot to record, on any past day. "
                         + "The slice it lands in is cut short at the start. Without an end, the new slice "
-                        + "runs until the next slice; with one, the interrupted slice resumes at the end. "
+                        + "runs until the next slice; with one, the interrupted slice resumes at the end, or "
+                        + "the day goes Off-line there if nothing was interrupted (before the day's first "
+                        + "slice). On a day with no timeline, one is created and an end is required, e.g. "
+                        + "a vacation day from 8:00 to 16:00. "
                         + "Changes the user's timeline: call only when the user asks or agrees.")
                     .inputSchema(schema(Map.of(
                         "start", Map.of("type", "string", "description", "Start time: " + TIME_FORMATS),
@@ -289,6 +292,21 @@ public class TraxMcpServer
                 (exchange, request) -> run(() -> sliceService.insertSlice(arg(request.arguments(), "start"),
                     arg(request.arguments(), "task"), arg(request.arguments(), "type"),
                     arg(request.arguments(), "note"), arg(request.arguments(), "end")))
+            )
+
+            // --- delete_slice ---
+            .toolCall(
+                Tool.builder()
+                    .name("delete_slice")
+                    .description("Delete the slice that was running at a given time. The slice before it "
+                        + "grows to cover the gap, as in trax's Delete. A timeline's only slice cannot be "
+                        + "deleted. Changes the user's timeline: call only when the user asks or agrees.")
+                    .inputSchema(schema(Map.of(
+                        "time", Map.of("type", "string", "description", "A time within the slice: " + TIME_FORMATS),
+                        "index", INDEX_PROP), "time"))
+                    .build(),
+                (exchange, request) -> run(() -> sliceService.deleteSlice(arg(request.arguments(), "time"),
+                    intArg(request.arguments(), "index")))
             )
 
             // --- edit_slice ---

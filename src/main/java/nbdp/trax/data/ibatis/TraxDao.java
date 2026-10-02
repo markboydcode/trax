@@ -262,6 +262,12 @@ public class TraxDao extends SqlSessionDaoSupport implements I_TraxDao
         session.update("trax.updateTimeslice", s);
     }
 
+    public void deleteTimeslice(I_Timeslice s)
+    {
+        SqlSession session = this.getSqlSession();
+        session.delete("trax.deleteTimeslice", s);
+    }
+
     public void moveTimeslice(int lineId, Timestamp from, Timestamp to)
     {
         SqlSession session = this.getSqlSession();

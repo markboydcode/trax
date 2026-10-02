@@ -167,9 +167,11 @@ public class SliceService
     }
 
     /**
-     * Inserts a slice into an existing timeline at a past time. Without an end
-     * the slice runs until the next slice; with one, the slice it interrupted
-     * resumes at the end time.
+     * Inserts a slice at a past time. The slice it lands in is cut short.
+     * Without an end the new slice runs until the next slice; with one, the
+     * interrupted slice resumes at the end, or an Off-line slice starts there
+     * when nothing was interrupted (before a day's first slice, or on a day
+     * with no timeline, which is then created and requires an end).
      */
     public String insertSlice(String start, String task, String type, String note, String end)
     {
@@ -187,58 +189,121 @@ public class SliceService
             if (until != null && until.isAfter(now))
                 throw new IllegalArgumentException("The end " + describe(until) + " is in the future.");
 
-            I_Timeline line = lockTimelineAt(from);
-            List<I_Timeslice> slices = slicesOf(line);
+            Timestamp fromTs = Timestamp.valueOf(from);
+            I_Timeline line = findTimeline(from);
+            List<I_Timeslice> slices;
+            String result = "";
+            if (line == null)
+            {
+                if (until == null)
+                {
+                    throw new IllegalArgumentException("No timeline exists for " + from.toLocalDate()
+                        + "; pass an end to create one, and the day goes Off-line at the end.");
+                }
+                line = dao.createTimeline(fromTs);
+                slices = new ArrayList<>();
+                result = "Created the timeline for " + from.toLocalDate() + ". ";
+            }
+            else
+            {
+                line = lock(line);
+                slices = slicesOf(line);
+            }
             for (I_Timeslice s : slices)
             {
                 if (minute(s).equals(from))
                 {
                     throw new IllegalArgumentException("A slice already starts at "
-                        + describe(from) + "; edit it in trax instead.");
+                        + describe(from) + "; use edit_slice instead.");
                 }
             }
             int hostIdx = indexAt(slices, from);
-            if (hostIdx < 0)
-            {
-                throw new IllegalArgumentException(describe(from) + " is before the timeline's first slice at "
-                    + describe(minute(slices.get(0))) + ".");
-            }
-            I_Timeslice host = slices.get(hostIdx);
+            I_Timeslice host = hostIdx >= 0 ? slices.get(hostIdx) : null;
             I_Timeslice next = hostIdx + 1 < slices.size() ? slices.get(hostIdx + 1) : null;
-            boolean resume = until != null;
-            if (resume && next != null)
+            boolean fill = until != null;
+            if (fill && next != null)
             {
                 if (until.isAfter(minute(next)))
                 {
                     throw new IllegalArgumentException("The end " + describe(until) + " runs past the next slice at "
-                        + describe(minute(next)) + "; covering it would delete slices, so do that in trax.");
+                        + describe(minute(next)) + "; delete or move that slice first.");
                 }
-                // ending where the next slice begins leaves nothing to resume
-                resume = until.isBefore(minute(next));
+                // ending where the next slice begins leaves a gap of nothing
+                fill = until.isBefore(minute(next));
             }
 
-            Timestamp fromTs = Timestamp.valueOf(from);
-            host.setDuration(fromTs.getTime() - host.getStart().getTime());
-            dao.updateTimeslice(host);
-
+            if (host != null)
+            {
+                host.setDuration(fromTs.getTime() - host.getStart().getTime());
+                dao.updateTimeslice(host);
+            }
             I_Timeslice inserted = dao.newTimeslice(line.getId(), fromTs);
             setFields(inserted, t, ty, note);
-            if (resume)
+            if (fill)
                 inserted.setDuration(Timestamp.valueOf(until).getTime() - fromTs.getTime());
             else if (next != null)
                 inserted.setDuration(next.getStart().getTime() - fromTs.getTime());
             dao.insertTimeslice(inserted);
             slices.add(hostIdx + 1, inserted);
+            result += "Inserted " + summary(inserted) + " at " + describe(from) + ".";
 
-            String result = "Inserted " + summary(inserted) + " at " + describe(from) + ".";
-            if (resume)
+            if (fill)
             {
-                I_Timeslice resumed = host.copy();
-                resumed.setStart(Timestamp.valueOf(until));
-                resumed.setDuration(next == null ? 0 : next.getStart().getTime() - resumed.getStart().getTime());
-                dao.insertTimeslice(resumed);
-                slices.add(hostIdx + 2, resumed);
-                result += " " + summary(host) + " resumes at " + describe(until) + ".";
+                // resume what was interrupted, or go Off-line when nothing was
+                I_Timeslice after = host != null ? host.copy() : dao.newTimeslice(line.getId(), null);
+                if (host == null)
+                    setFields(after, null, dao.getTypeById(I_Type.OFFLINE_TYPE_ID), null);
+                after.setTimelineId(line.getId());
+                after.setStart(Timestamp.valueOf(until));
+                after.setDuration(next == null ? 0 : next.getStart().getTime() - after.getStart().getTime());
+                dao.insertTimeslice(after);
+                slices.add(hostIdx + 2, after);
+                result += host != null
+                    ? " " + summary(host) + " resumes at " + describe(until) + "."
+                    : " Off-line from " + describe(until) + ".";
+            }
+            updateStop(line, slices);
+            return result;
+        });
+    }
+
+    /**
+     * Removes the slice that was running at a given time. The slice before it
+     * grows to cover the gap, as in the UI; removing a day's first slice makes
+     * the timeline start at the next one.
+     */
+    public String deleteSlice(String time, Integer index)
+    {
+        LocalDateTime at = parseTime(time, null);
+        return write(() -> {
+            if (at.isAfter(now()))
+                throw new IllegalArgumentException(describe(at) + " is in the future.");
+            I_Timeline line = lockTimelineAt(at);
+            List<I_Timeslice> slices = slicesOf(line);
+            int i = selectSlice(slices, at, index);
+            I_Timeslice s = slices.get(i);
+            if (slices.size() == 1)
+            {
+                throw new IllegalArgumentException("The " + summary(s) + " slice is the only one in its timeline; "
+                    + "delete the timeline in trax instead.");
+            }
+            I_Timeslice prev = i > 0 ? slices.get(i - 1) : null;
+            I_Timeslice next = i + 1 < slices.size() ? slices.get(i + 1) : null;
+            dao.deleteTimeslice(s);
+            slices.remove(i);
+
+            String result = "Deleted the " + summary(s) + " slice at " + describe(minute(s)) + ".";
+            if (prev != null)
+            {
+                prev.setDuration(next == null ? 0 : next.getStart().getTime() - prev.getStart().getTime());
+                dao.updateTimeslice(prev);
+                result += next == null
+                    ? " " + summary(prev) + " is now the last slice."
+                    : " " + summary(prev) + " now runs until " + describe(minute(next)) + ".";
+            }
+            else
+            {
+                result += " The timeline now starts at " + describe(minute(next)) + ".";
             }
             updateStop(line, slices);
             return result;
@@ -416,19 +481,27 @@ public class SliceService
 
     private I_Timeline lockTimelineAt(LocalDateTime at)
     {
+        I_Timeline line = findTimeline(at);
+        if (line == null)
+            throw new IllegalArgumentException("No timeline exists for " + at.toLocalDate() + ".");
+        return lock(line);
+    }
+
+    /**
+     * Returns the timeline of the day a time falls on: the last one begun by
+     * that minute, or else the day's first one, for a time before it began.
+     */
+    private I_Timeline findTimeline(LocalDateTime at)
+    {
+        LocalDate day = at.toLocalDate();
         // times are named to the minute, so include a timeline begun later in that minute
         I_Timeline line = dao.getTimelineAt(Timestamp.valueOf(at.plusMinutes(1).minusNanos(1)));
-        if (line == null || !line.getStart().toLocalDateTime().toLocalDate().equals(at.toLocalDate()))
-        {
-            I_Timeline later = dao.getTimelineAt(Timestamp.valueOf(at.toLocalDate().plusDays(1).atStartOfDay()));
-            if (later != null && later.getStart().toLocalDateTime().toLocalDate().equals(at.toLocalDate()))
-            {
-                throw new IllegalArgumentException(describe(at) + " is before the timeline's first slice at "
-                    + describe(later.getStart().toLocalDateTime().truncatedTo(ChronoUnit.MINUTES)) + ".");
-            }
-            throw new IllegalArgumentException("No timeline exists for " + at.toLocalDate() + ".");
-        }
-        return lock(line);
+        if (line != null && line.getStart().toLocalDateTime().toLocalDate().equals(day))
+            return line;
+        I_Timeline later = dao.getTimelineAt(Timestamp.valueOf(day.plusDays(1).atStartOfDay().minusNanos(1)));
+        if (later != null && later.getStart().toLocalDateTime().toLocalDate().equals(day))
+            return later;
+        return null;
     }
 
     private I_Timeline lock(I_Timeline line)

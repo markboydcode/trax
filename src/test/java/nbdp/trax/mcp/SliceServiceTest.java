@@ -213,12 +213,10 @@ class SliceServiceTest
             .hasMessageContaining("already starts");
         assertThatThrownBy(() -> service.insertSlice("11:00", "TAZ", null, null, "12:30"))
             .hasMessageContaining("runs past the next slice");
-        assertThatThrownBy(() -> service.insertSlice("8:00", "TAZ", null, null, null))
-            .hasMessageContaining("before the timeline's first slice");
         assertThatThrownBy(() -> service.insertSlice("15:00", "TAZ", null, null, null))
             .hasMessageContaining("future");
         assertThatThrownBy(() -> service.insertSlice("2026-09-29 10:00", "TAZ", null, null, null))
-            .hasMessageContaining("No timeline exists for 2026-09-29");
+            .hasMessageContaining("No timeline exists for 2026-09-29; pass an end");
     }
 
     @Test
@@ -316,6 +314,61 @@ class SliceServiceTest
         assertThat(slices(line)).extracting(I_Timeslice::getNote)
             .containsExactly(null, "trax", "home-2 home-3 urgent", null);
         assertThat(slices(line).get(1).getDuration()).isEqualTo(2 * 60_000L + 45_000L);
+    }
+
+    @Test
+    void insertBeforeFirstSliceMovesTimelineStart()
+    {
+        I_Timeline line = timeline(NOW.minusHours(4), slice("10:00", taz, CODING, null));
+
+        service.insertSlice("9:15", "BS", null, null, null);
+        assertThat(slices(line)).extracting(I_Timeslice::getDuration).containsExactly(45 * 60_000L, 0L);
+        assertThat(dao.getLatestTimeline().getStart()).isEqualTo(Timestamp.valueOf(NOW.withHour(9).withMinute(15)));
+
+        assertThat(service.insertSlice("8:00", "BS", null, null, "8:30")).contains("Off-line from 8:30 AM");
+        assertThat(slices(line)).extracting(I_Timeslice::getTypeId)
+            .containsExactly(CODING, I_Type.OFFLINE_TYPE_ID, CODING, CODING);
+        assertThatThrownBy(() -> service.insertSlice("7:00", "BS", null, null, "8:10"))
+            .hasMessageContaining("runs past the next slice at 8:00 AM");
+    }
+
+    @Test
+    void insertCreatesTimelineForAPastDay()
+    {
+        String result = service.insertSlice("2026-09-20 8:00", "TAZ", "Meeting", "vacation", "2026-09-20 16:00");
+
+        assertThat(result).startsWith("Created the timeline for 2026-09-20.").contains("Off-line from 2026-09-20 4:00 PM");
+        I_Timeline day = dao.getTimelineAt(Timestamp.valueOf("2026-09-20 23:00:00"));
+        assertThat(day.getStart()).isEqualTo(Timestamp.valueOf("2026-09-20 08:00:00"));
+        assertThat(day.getStop()).isEqualTo(Timestamp.valueOf("2026-09-20 16:00:00"));
+        assertThat(slices(day)).extracting(I_Timeslice::getDuration).containsExactly(8 * 3_600_000L, 0L);
+    }
+
+    @Test
+    void deleteExtendsThePreviousSlice()
+    {
+        I_Timeline line = timeline(NOW.minusHours(5), slice("09:00", taz, CODING, null),
+            slice("10:00", bs, CODING, null), slice("11:00", taz, CODING, null));
+
+        assertThat(service.deleteSlice("10:30", null)).contains("'TAZ' (Coding) now runs until 11:00 AM");
+        assertThat(slices(line)).extracting(I_Timeslice::getDuration).containsExactly(2 * 3_600_000L, 0L);
+
+        assertThat(service.deleteSlice("9:00", null)).contains("The timeline now starts at 11:00 AM");
+        assertThat(dao.getLatestTimeline().getStart()).isEqualTo(Timestamp.valueOf(NOW.withHour(11).withMinute(0)));
+        assertThatThrownBy(() -> service.deleteSlice("11:00", null)).hasMessageContaining("only one");
+    }
+
+    @Test
+    void deleteInASharedMinuteNeedsAnIndex()
+    {
+        I_Timeline line = timeline(NOW.minusHours(5), slice("10:00:05", taz, CODING, "trax"),
+            slice("10:00:45", bs, CODING, "urgent"), slice("11:00", taz, CODING, null));
+
+        assertThatThrownBy(() -> service.deleteSlice("10:00", null)).hasMessageContaining("Pass index");
+        service.deleteSlice("10:00", 2);
+
+        assertThat(slices(line)).extracting(I_Timeslice::getNote).containsExactly("trax", null);
+        assertThat(slices(line).get(0).getDuration()).isEqualTo(60 * 60_000L - 5_000L);
     }
 
     // ---- fixtures ----
